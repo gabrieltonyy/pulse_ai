@@ -1,0 +1,1 @@
+"""Pulse AI API routes package."""

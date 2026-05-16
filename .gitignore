@@ -72,7 +72,6 @@ Thumbs.db
 
 # Project Specific
 bob_sessions/*.json
-bob_sessions/*.md
 !bob_sessions/.gitkeep
 
 # Temporary files

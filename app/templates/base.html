@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Pulse AI — Event Discovery{% endblock %}</title>
+
+  <!-- HTMX for zero-JS form submissions -->
+  <script src="https://unpkg.com/htmx.org@1.9.10" defer></script>
+
+  <!-- Tailwind CSS (CDN, fine for hackathon) -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+    rel="stylesheet"
+  />
+
+  <!-- Custom overrides -->
+  <link rel="stylesheet" href="/static/css/style.css" />
+
+  {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+
+  <!-- ── Navigation ── -->
+  <nav class="bg-white shadow-sm sticky top-0 z-10">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-4">
+      <a href="/" class="flex items-center gap-2 text-blue-600 hover:text-blue-700">
+        <span class="text-2xl">🎯</span>
+        <span class="text-xl font-bold tracking-tight">Pulse AI</span>
+      </a>
+      <span class="text-gray-400 text-sm hidden sm:block">AI-Powered Event Discovery</span>
+
+      <div class="ml-auto flex items-center gap-3 text-sm text-gray-500">
+        <a href="/api/search/demo" target="_blank" class="hover:text-blue-600">Demo API</a>
+        <a href="/docs" target="_blank" class="hover:text-blue-600">API Docs</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Main content ── -->
+  <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- ── Footer ── -->
+  <footer class="bg-white border-t mt-auto py-5 text-center text-gray-400 text-xs">
+    Powered by
+    <span class="text-gray-600 font-medium">IBM watsonx.ai</span> ·
+    <span class="text-gray-600 font-medium">Ticketmaster</span> ·
+    <span class="text-gray-600 font-medium">Geoapify</span> ·
+    <span class="text-gray-600 font-medium">OpenWeather</span>
+    &nbsp;|&nbsp; IBM Bob AI Hackathon 2026
+  </footer>
+
+</body>
+</html>

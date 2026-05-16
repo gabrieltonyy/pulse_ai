@@ -7,6 +7,9 @@ from app.mcp.tools import (
     calendar_tools,
     redirect_tools,
     demo_tools,
+    pulse_search_events,
+    pulse_enrich_venue,
+    pulse_get_weather,
 )
 
 __all__ = [
@@ -17,6 +20,9 @@ __all__ = [
     "calendar_tools",
     "redirect_tools",
     "demo_tools",
+    "pulse_search_events",
+    "pulse_enrich_venue",
+    "pulse_get_weather"
 ]
 
 # Made with Bob

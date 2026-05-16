@@ -1,347 +1,291 @@
-# Pulse AI 🎵
+# 🎯 Pulse AI - AI-Powered Event Discovery Platform
 
-**AI-Powered Event Discovery & Recommendation Platform**
+> **IBM Lablab Hackathon Submission - May 2026**
+> 
+> An intelligent event discovery platform that uses IBM watsonx.ai, LangGraph workflows, and MCP tools to provide personalized event recommendations with context-aware ranking.
 
-Pulse AI is an intelligent event discovery system that combines LangGraph workflows, IBM watsonx.ai, and multiple external APIs to provide personalized event recommendations with natural language explanations.
+## 🌟 Key Features
 
----
-
-## 🌟 Features
-
-- **Natural Language Search**: Describe what you're looking for in plain English
-- **Multi-Factor Ranking**: Events ranked by relevance, date, affordability, popularity, venue context, and weather
-- **Venue Context**: Enriched with nearby POIs, transit info, and neighborhood details
-- **Weather Integration**: Outdoor suitability assessment for events
-- **Smart Explanations**: AI-generated reasoning for recommendations
-- **Calendar Export**: One-click .ics file generation
-- **Demo Mode**: Test without API keys using fallback data
-
----
+- **Natural Language Search** - Ask in plain English: "rock concerts in London this weekend"
+- **AI-Powered Query Understanding** - IBM watsonx.ai parses and extracts search intent
+- **Multi-Source Event Discovery** - Integrates Ticketmaster API for comprehensive event data
+- **Context-Aware Enrichment** - Adds venue details (Geoapify) and weather forecasts (OpenWeather)
+- **Intelligent Ranking** - 6-component scoring algorithm with personalized recommendations
+- **MCP Tool Integration** - Expose functionality via Model Context Protocol for AI assistants
+- **Demo Mode** - Reliable presentation mode without API dependencies
+- **HTMX Interface** - Fast, modern web UI with progressive enhancement
 
 ## 🏗️ Architecture
 
 ### Technology Stack
-- **Backend**: FastAPI (async)
-- **Database**: PostgreSQL with asyncpg
-- **ORM**: SQLAlchemy 2.x (async)
-- **Workflow**: LangGraph
-- **LLM**: IBM watsonx.ai (Granite models)
-- **MCP**: FastMCP for tool exposure
-- **Frontend**: HTMX + Jinja2 templates
 
-### Workflow Pipeline
+**Backend:**
+- Python 3.12
+- FastAPI (async web framework)
+- LangGraph (workflow orchestration)
+- PostgreSQL (data persistence)
+- SQLAlchemy 2.x (async ORM)
+
+**AI & APIs:**
+- IBM watsonx.ai (LLM for query parsing & explanations)
+- Ticketmaster Discovery API (event search)
+- Geoapify Places API (venue context)
+- OpenWeather API (weather forecasts)
+
+**Frontend:**
+- HTMX (dynamic interactions)
+- Tailwind CSS (styling)
+- Jinja2 (templating)
+
+**Integration:**
+- MCP (Model Context Protocol) server
+- Docker & Docker Compose
+
+### Workflow Architecture
+
 ```
-User Query
-  → Parse Intent (LLM)
-    → Validate Parameters
-      → Search Events (Ticketmaster)
-        → Normalize Data
-          → Enrich Venues (Geoapify)
-            → Add Weather Context (OpenWeather)
-              → Rank & Score Events
-                → Generate Explanations (LLM)
-                  → Return Results
+User Query → Parse (watsonx.ai) → Validate → Search (Ticketmaster)
+    ↓
+Normalize → Enrich Venues (Geoapify) → Weather Context (OpenWeather)
+    ↓
+Rank & Score → Generate Explanations (watsonx.ai) → Prepare Response
 ```
 
----
+**9 LangGraph Nodes:**
+1. `parse_query` - Extract search intent using watsonx.ai
+2. `validate_query` - Validate required parameters
+3. `search_events` - Query Ticketmaster API
+4. `normalize_events` - Standardize event data
+5. `enrich_venues` - Add nearby places via Geoapify
+6. `weather_context` - Add weather forecasts via OpenWeather
+7. `rank_events` - Score and rank using 6-component algorithm
+8. `generate_explanations` - Create AI explanations via watsonx.ai
+9. `prepare_response` - Format final response
+
+### Ranking Algorithm
+
+**6 Scoring Components (0-100 each):**
+- **Relevance** (30%) - Category, keyword, preference matching
+- **Date Match** (20%) - Proximity to requested dates
+- **Affordability** (20%) - Budget compatibility
+- **Popularity** (15%) - Event metadata quality
+- **Context** (10%) - Venue richness (nearby amenities)
+- **Weather** (5%) - Outdoor suitability
+
+**Labels:** Best Overall, Best Budget Pick, Trending Option, Closest Match
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.12+
-- PostgreSQL 16+
-- Docker & Docker Compose (optional)
 
-### 1. Clone Repository
-```bash
-git clone https://github.com/gabrieltonyy/pulse_ai.git
-cd pulse_ai
-```
-
-### 2. Set Up Environment
-```bash
-# Create virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### 3. Configure Environment Variables
-```bash
-# Copy example env file
-cp .env.example .env
-
-# Edit .env with your API keys
-# Required:
-# - TICKETMASTER_API_KEY
-# - GEOAPIFY_API_KEY
-# - OPENWEATHER_API_KEY
-# - WATSONX_API_KEY
-# - WATSONX_PROJECT_ID
-# - DATABASE_URL
-```
-
-### 4. Set Up Database
-```bash
-# Start PostgreSQL (if using Docker)
-docker-compose up -d postgres
-
-# Run migrations
-alembic upgrade head
-```
-
-### 5. Run Application
-```bash
-# Development mode
-uvicorn app.main:app --reload
-
-# Or use Docker Compose
-docker-compose up
-```
-
-### 6. Access Application
-- **Web UI**: http://localhost:8000
-- **API Docs**: http://localhost:8000/docs
-- **Health Check**: http://localhost:8000/health
-
----
-
-## 🐳 Docker Deployment
-
-### Using Docker Compose (Recommended)
-```bash
-# Build and start all services
-docker-compose up --build
-
-# Run in background
-docker-compose up -d
-
-# View logs
-docker-compose logs -f app
-
-# Stop services
-docker-compose down
-```
-
-### Manual Docker Build
-```bash
-# Build image
-docker build -t pulse-ai .
-
-# Run container
-docker run -p 8000:8000 --env-file .env pulse-ai
-```
-
----
-
-## 📁 Project Structure
-
-```
-pulse_ai/
-├── app/
-│   ├── config/          # Configuration management
-│   ├── db/              # Database models & migrations
-│   ├── graph/           # LangGraph workflow & nodes
-│   ├── integrations/    # External API clients
-│   ├── mcp/             # MCP server & tools
-│   ├── models/          # SQLAlchemy models
-│   ├── routes/          # FastAPI routes
-│   ├── services/        # Business logic
-│   ├── static/          # CSS, JS files
-│   ├── templates/       # Jinja2 templates
-│   └── main.py          # Application entry point
-├── docs/                # Documentation
-├── tests/               # Test suite
-├── bob_sessions/        # Bob AI session exports
-├── alembic.ini          # Alembic configuration
-├── docker-compose.yml   # Docker Compose config
-├── Dockerfile           # Docker image definition
-├── requirements.txt     # Python dependencies
-├── TASKS.md             # Development task tracking
-├── HAND_OVER.md         # Session continuity
-└── README.md            # This file
-```
-
----
-
-## 🔧 Configuration
+- Docker & Docker Compose
+- Python 3.12+ (for local development)
+- API Keys (see Environment Variables)
 
 ### Environment Variables
 
-#### Application
-- `DEBUG`: Enable debug mode (default: false)
-- `DEMO_MODE`: Use demo data instead of real APIs (default: false)
-
-#### Database
-- `DATABASE_URL`: PostgreSQL connection string
-- `DATABASE_POOL_SIZE`: Connection pool size (default: 5)
-
-#### APIs
-- `TICKETMASTER_API_KEY`: Ticketmaster Discovery API key
-- `GEOAPIFY_API_KEY`: Geoapify Places API key
-- `OPENWEATHER_API_KEY`: OpenWeather API key
-
-#### LLM (watsonx.ai)
-- `WATSONX_API_KEY`: IBM watsonx.ai API key
-- `WATSONX_PROJECT_ID`: watsonx.ai project ID
-- `WATSONX_URL`: watsonx.ai endpoint URL
-- `WATSONX_MODEL`: Model name (default: ibm/granite-13b-chat-v2)
-
----
-
-## 🧪 Testing
+Create `.env` file (copy from `.env.example`):
 
 ```bash
-# Run all tests
-pytest
+# IBM watsonx.ai
+WATSONX_API_KEY=your_watsonx_api_key
+WATSONX_PROJECT_ID=your_project_id
+WATSONX_URL=https://us-south.ml.cloud.ibm.com
 
-# Run with coverage
-pytest --cov=app --cov-report=html
+# Ticketmaster
+TICKETMASTER_API_KEY=your_ticketmaster_key
 
-# Run specific test file
-pytest tests/test_workflow.py
+# Geoapify
+GEOAPIFY_API_KEY=your_geoapify_key
 
-# Run in verbose mode
-pytest -v
+# OpenWeather
+OPENWEATHER_API_KEY=your_openweather_key
+
+# Database
+DATABASE_URL=postgresql+asyncpg://pulse_user:pulse_pass@db:5432/pulse_db
 ```
 
----
+### Run with Docker (Recommended)
 
-## 📊 API Endpoints
-
-### Core Endpoints
-- `GET /` - Home page
-- `GET /health` - Health check
-- `POST /api/search` - Search events
-- `GET /api/events/{event_id}` - Get event details
-- `GET /api/calendar/{event_id}` - Export to calendar
-- `GET /api/redirect/{event_id}` - Get ticket purchase URL
-
-### Documentation
-- `GET /docs` - Interactive API documentation (Swagger UI)
-- `GET /redoc` - Alternative API documentation (ReDoc)
-
----
-
-## 🛠️ Development
-
-### Running Locally
 ```bash
-# Activate virtual environment
-source .venv/bin/activate
+# Start all services
+docker compose up
 
-# Run with auto-reload
-uvicorn app.main:app --reload --log-level debug
-
-# Run MCP server separately (optional)
-python -m app.mcp.server
+# Access application
+# Web UI: http://localhost:8000
+# API Docs: http://localhost:8000/docs
+# Health: http://localhost:8000/health
 ```
 
-### Database Migrations
-```bash
-# Create new migration
-alembic revision --autogenerate -m "description"
+### Run Locally (Development)
 
-# Apply migrations
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Start PostgreSQL
+docker compose up db
+
+# Run migrations
 alembic upgrade head
 
-# Rollback migration
-alembic downgrade -1
-
-# View migration history
-alembic history
+# Start application
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### Code Quality
+### Run Tests
+
 ```bash
-# Format code
-black app/
+# Run all tests with coverage
+./run_tests.sh
 
-# Lint code
-flake8 app/
+# Run specific test file
+pytest tests/test_workflow_integration.py -v
 
-# Type checking
-mypy app/
+# Run with markers
+pytest tests/ -m "not slow" -v
 ```
 
+## 🎮 Demo Mode
+
+Demo mode provides reliable functionality without API dependencies:
+
+```bash
+# Via web UI
+Click "Try Demo" button on home page
+
+# Via API
+curl http://localhost:8000/api/search/demo
+
+# Via MCP tool
+pulse_search_events(query="concerts", use_demo=True)
+```
+
+Demo data includes 14 realistic events across multiple categories.
+
+## 🔧 MCP Tools
+
+Pulse AI exposes 3 MCP tools for AI assistants:
+
+**1. pulse_search_events**
+- Search and rank events using full workflow
+- Inputs: query, city, country, category, dates, budget, use_demo
+- Returns: ranked events with recommendations
+
+**2. pulse_enrich_venue**
+- Get nearby places for a location
+- Inputs: latitude, longitude, radius
+- Returns: nearby restaurants, entertainment, transport
+
+**3. pulse_get_weather**
+- Get weather forecast for event
+- Inputs: latitude, longitude, date
+- Returns: temperature, conditions, outdoor suitability
+
+See [`docs/MCP_USAGE.md`](docs/MCP_USAGE.md) for detailed documentation.
+
+## 📚 API Documentation
+
+- **Interactive Docs:** http://localhost:8000/docs
+- **ReDoc:** http://localhost:8000/redoc
+- **OpenAPI JSON:** http://localhost:8000/openapi.json
+
+### Key Endpoints
+
+- `GET /` - Home page with search form
+- `POST /api/search/` - JSON search endpoint
+- `POST /api/search/htmx` - HTMX search endpoint
+- `GET /api/search/demo` - Demo search
+- `GET /api/events/{id}` - Event details
+- `GET /api/events/{id}/calendar` - Export to calendar (.ics)
+- `POST /api/events/{id}/track-click` - Track outbound clicks
+
+## 🔒 Security Notes
+
+- **API Keys:** Never commit `.env` file
+- **Secrets:** Use environment variables only
+- **Database:** Change default credentials in production
+- **CORS:** Configure allowed origins in production
+- **Rate Limiting:** Implement for production deployment
+
+## 🤖 Bob (AI Assistant) Usage
+
+This project was built with Bob, an AI coding assistant:
+
+**Development Workflow:**
+1. Bob analyzed project requirements from `docs/` folder
+2. Created 8-phase development roadmap
+3. Implemented each phase incrementally
+4. Maintained operational docs (TASKS.md, HAND_OVER.md)
+5. Created comprehensive test suite
+
+**Bob Session Proof:**
+- Session exports: `bob_sessions/`
+- Screenshots: `bob_sessions/screenshots/`
+- See [`bob_sessions/README.md`](bob_sessions/README.md) for details
+
+## 🏆 Hackathon Submission
+
+**IBM Technologies Used:**
+- ✅ IBM watsonx.ai (LLM for query parsing & explanations)
+- ✅ LangGraph (workflow orchestration)
+- ✅ MCP (Model Context Protocol integration)
+
+**Innovation Highlights:**
+- Context-aware event ranking with 6-component algorithm
+- Multi-API orchestration via LangGraph
+- MCP tools for AI assistant integration
+- Demo mode for reliable presentations
+- Comprehensive test coverage (52+ tests)
+
+**Project Metrics:**
+- 8 phases completed
+- 60+ files created
+- 9 LangGraph nodes
+- 3 MCP tools
+- 6 API routes
+- 52+ tests (>70% coverage)
+- 4 external API integrations
+
+## 📖 Documentation
+
+- [`ROADMAP.md`](ROADMAP.md) - 8-phase development plan
+- [`TASKS.md`](TASKS.md) - Detailed task tracking
+- [`HAND_OVER.md`](HAND_OVER.md) - Session continuity
+- [`ARCHITECTURE_NOTES.md`](ARCHITECTURE_NOTES.md) - Technical decisions
+- [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) - Known limitations
+- [`docs/MCP_USAGE.md`](docs/MCP_USAGE.md) - MCP tool documentation
+
+## 🐛 Troubleshooting
+
+**Application won't start:**
+- Check `.env` file exists with all required keys
+- Verify Docker is running
+- Check port 8000 is available
+
+**Tests failing:**
+- Ensure virtual environment is activated
+- Run `pip install -r requirements.txt`
+- Check PostgreSQL is running
+
+**MCP server issues:**
+- Verify Python path in MCP config
+- Check stdio transport configuration
+- See [`docs/MCP_USAGE.md`](docs/MCP_USAGE.md)
+
+**API errors:**
+- Verify API keys are valid
+- Check API rate limits
+- Use demo mode for testing
+
+## 📝 License
+
+MIT License - See [LICENSE](LICENSE) file
+
+## 👥 Team
+
+Built with Bob AI Assistant for IBM Lablab Hackathon May 2026
+
 ---
 
-## 📝 Documentation
-
-- **[Project Brief](docs/01-Project-Brief.md)** - Overview and goals
-- **[Technical Architecture](docs/03-Technical-Architecture.md)** - System design
-- **[Data Models](docs/08-data-models-and-schemas.md)** - Schema definitions
-- **[API Integration](docs/09-api-and-external-services.md)** - External APIs
-- **[Development Plan](docs/06-bob-development-task-plan.md)** - Implementation roadmap
-
----
-
-## 🤝 Contributing
-
-This is a hackathon project developed for the IBM Bob AI Hackathon (May 2026).
-
-### Development Workflow
-1. Check `TASKS.md` for current priorities
-2. Read `HAND_OVER.md` for project state
-3. Make changes in feature branch
-4. Update `TASKS.md` with progress
-5. Update `HAND_OVER.md` before ending session
-
----
-
-## 📄 License
-
-This project is developed for the IBM Bob AI Hackathon.
-
----
-
-## 🙏 Acknowledgments
-
-- **IBM watsonx.ai** - LLM provider
-- **Ticketmaster** - Event data
-- **Geoapify** - Location services
-- **OpenWeather** - Weather data
-- **LangGraph** - Workflow orchestration
-- **FastAPI** - Web framework
-
----
-
-## 📧 Contact
-
-- **GitHub**: https://github.com/gabrieltonyy/pulse_ai
-- **Hackathon**: IBM Bob AI Hackathon (May 2026)
-
----
-
-## 🎯 Roadmap
-
-### Phase 1: Foundation ✅
-- [x] Project structure
-- [x] Database setup
-- [x] FastAPI bootstrap
-- [x] LangGraph scaffold
-- [x] MCP scaffold
-
-### Phase 2: Core Implementation 🚧
-- [ ] LLM integration
-- [ ] API integrations
-- [ ] Workflow implementation
-- [ ] Demo mode
-
-### Phase 3: Frontend 📋
-- [ ] HTMX search interface
-- [ ] Results display
-- [ ] Event details
-- [ ] Calendar export
-
-### Phase 4: Polish 🎨
-- [ ] Testing
-- [ ] Documentation
-- [ ] Performance optimization
-- [ ] Demo preparation
-
----
-
-**Built with ❤️ for the IBM Bob AI Hackathon**
+**Questions?** Check [`docs/`](docs/) folder or open an issue.

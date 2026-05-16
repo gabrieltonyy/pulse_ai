@@ -4,13 +4,68 @@ Provides async repository pattern for database operations.
 """
 from datetime import datetime
 from typing import Optional, List
-from sqlalchemy import select, delete, and_
+from sqlalchemy import select, delete, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.saved_events import SavedEvent
 from app.models.search_history import SearchHistory
 from app.models.api_cache import APICache
 from app.models.outbound_clicks import OutboundClick
+from app.models.event import Event
+
+
+class EventRepository:
+    """Repository for event operations."""
+    
+    def __init__(self, session: AsyncSession = None):
+        """Initialize repository with optional database session."""
+        self.session = session
+    
+    async def get_by_id(self, event_id: str) -> Optional[Event]:
+        """
+        Get event by ID.
+        
+        Args:
+            event_id: Event identifier
+        
+        Returns:
+            Event instance or None if not found
+        """
+        if not self.session:
+            from app.db.database import get_session
+            async with get_session() as session:
+                result = await session.execute(
+                    select(Event).where(Event.id == event_id)
+                )
+                return result.scalar_one_or_none()
+        
+        result = await self.session.execute(
+            select(Event).where(Event.id == event_id)
+        )
+        return result.scalar_one_or_none()
+    
+    async def increment_click_count(self, event_id: str):
+        """
+        Increment click count for event tracking.
+        
+        Args:
+            event_id: Event identifier
+        """
+        if not self.session:
+            from app.db.database import get_session
+            async with get_session() as session:
+                await session.execute(
+                    update(Event)
+                    .where(Event.id == event_id)
+                    .values(click_count=Event.click_count + 1)
+                )
+                await session.commit()
+        else:
+            await self.session.execute(
+                update(Event)
+                .where(Event.id == event_id)
+                .values(click_count=Event.click_count + 1)
+            )
 
 
 class SavedEventsRepository:
