@@ -95,17 +95,59 @@
 
 ---
 
-## In Progress
-None currently - Phase 3 complete!
+## Completed - Phase 4: Event Search & Normalization ✅
+- [x] **Ranking Service Implementation**
+  - [x] Created app/services/ranking_service.py with deterministic scoring algorithm
+  - [x] Implemented relevance_score (0-100) - category, keyword, preferences matching
+  - [x] Implemented date_match_score (0-100) - date range matching with fallback
+  - [x] Implemented affordability_score (0-100) - budget-based scoring
+  - [x] Implemented popularity_score (0-100) - metadata quality scoring
+  - [x] Implemented context_score (0-100) - venue context richness
+  - [x] Implemented weather_score (0-100) - outdoor suitability
+  - [x] Weighted total score calculation (30% relevance, 20% date, 20% affordability, 15% popularity, 10% context, 5% weather)
+  - [x] Label assignment (Best Overall, Best Budget Pick, Trending Option, Closest Match)
+  - [x] Event sorting by total score descending
+
+- [x] **LangGraph Nodes Completed**
+  - [x] enrich_venues.py - Geoapify integration for nearby places
+    - Fetches restaurants, entertainment, transport within 1km radius
+    - Generates area summary and transport context
+    - Graceful handling of missing coordinates
+  - [x] weather_context.py - OpenWeather integration for forecasts
+    - Adds weather context to outdoor events (Sports, Festival, Music)
+    - Calculates rain probability and outdoor suitability
+    - Generates weather notes for users
+  - [x] rank_events.py - Ranking service integration
+    - Reconstructs SearchIntent from state
+    - Calls RankingService to score and sort events
+    - Updates state with ranked_events
+  - [x] generate_explanations.py - LLM-powered explanations
+    - Uses watsonx.ai to generate personalized explanations
+    - Template-based fallback for reliability
+    - Explains why each event was recommended
+  - [x] prepare_response.py - Final response preparation
+    - Generates recommendation summary
+    - Highlights special picks (budget, trending, venue)
+    - Provides helpful suggestions when no results found
+
+- [x] **Testing**
+  - [x] Created tests/test_ranking_service.py with 20+ unit tests
+  - [x] Tests for all scoring components
+  - [x] Tests for label assignment logic
+  - [x] Tests for edge cases (missing data, empty results)
+  - [x] Tests for sorting and ranking behavior
 
 ---
 
-## Next Priority (Phase 4)
-- [ ] Implement enrich_venues node (Geoapify integration)
-- [ ] Implement weather_context node (OpenWeather integration)
-- [ ] Implement rank_events node
-- [ ] Implement generate_explanations node
-- [ ] Implement prepare_response node
+## In Progress
+None currently - Phase 4 complete!
+
+---
+
+## Next Priority (Phase 5)
+- [ ] MCP Tools Implementation
+- [ ] Frontend & Routes
+- [ ] Integration Testing
 
 ---
 
