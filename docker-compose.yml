@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: pulse_ai_db
+    environment:
+      POSTGRES_USER: pulse_user
+      POSTGRES_PASSWORD: pulse_password
+      POSTGRES_DB: pulse_ai
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulse_user -d pulse_ai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pulse_network
+
+  # Pulse AI Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pulse_ai_app
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pulse_user:pulse_password@postgres:5432/pulse_ai
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+      - ./bob_sessions:/app/bob_sessions
+    networks:
+      - pulse_network
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 5 &&
+        echo 'Running migrations...' &&
+        alembic upgrade head &&
+        echo 'Starting application...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  pulse_network:
+    driver: bridge
+
+# Made with Bob
