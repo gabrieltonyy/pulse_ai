@@ -58,12 +58,12 @@ def create_workflow() -> StateGraph:
 def create_pulse_workflow():
     """
     Create and compile the Pulse AI workflow graph.
-    This is an alias for get_compiled_workflow() for compatibility.
-    
+    This is an alias for get_workflow() for compatibility.
+
     Returns:
         Compiled workflow graph
     """
-    return get_compiled_workflow()
+    return get_workflow()
 
 
 def get_compiled_workflow():
@@ -94,5 +94,12 @@ def get_workflow():
         compiled_workflow = get_compiled_workflow()
     
     return compiled_workflow
+
+
+def reset_workflow() -> None:
+    """Clear the global compiled workflow instance for tests."""
+    global compiled_workflow
+
+    compiled_workflow = None
 
 # Made with Bob

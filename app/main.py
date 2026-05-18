@@ -2,16 +2,30 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app.api.routes.events import router as events_router
 from app.api.routes.search import router as search_router
+from app.config.settings import settings
+from app.graph.workflow import get_workflow
 
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Initialize shared application resources."""
+    logger.info("Pulse AI starting up...")
+    app.state.workflow = get_workflow()
+    yield
+    logger.info("Pulse AI shutting down.")
 
 # ---------------------------------------------------------------------------
 # Application factory
@@ -24,8 +38,17 @@ app = FastAPI(
         "through a LangGraph workflow."
     ),
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # ---------------------------------------------------------------------------
@@ -59,16 +82,3 @@ async def home(request: Request) -> HTMLResponse:
 async def health() -> dict:
     """Basic health-check endpoint."""
     return {"status": "healthy", "service": "pulse-ai"}
-
-
-# ---------------------------------------------------------------------------
-# Startup / shutdown events
-# ---------------------------------------------------------------------------
-@app.on_event("startup")
-async def on_startup() -> None:  # noqa: RUF029
-    logger.info("Pulse AI starting up…")
-
-
-@app.on_event("shutdown")
-async def on_shutdown() -> None:  # noqa: RUF029
-    logger.info("Pulse AI shutting down.")

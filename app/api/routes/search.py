@@ -10,7 +10,6 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.config.settings import settings
-from app.graph.workflow import create_pulse_workflow
 from app.models.search import SearchRequest, SearchResponse
 
 logger = logging.getLogger(__name__)
@@ -29,7 +28,10 @@ _MAX_QUERY_LENGTH = 300
 # POST /api/search  – full workflow, returns JSON
 # ---------------------------------------------------------------------------
 @router.post("/", response_model=SearchResponse)
-async def search_events(request: SearchRequest) -> SearchResponse:
+async def search_events(
+    search_request: SearchRequest,
+    request: Request,
+) -> SearchResponse:
     """
     Search for events using a natural language query.
 
@@ -46,18 +48,18 @@ async def search_events(request: SearchRequest) -> SearchResponse:
     """
     started = time.perf_counter()
     try:
-        workflow = create_pulse_workflow()
+        workflow = request.app.state.workflow
 
-        demo_mode = request.use_demo or request.demo_mode or settings.demo_mode
+        demo_mode = search_request.use_demo or search_request.demo_mode or settings.demo_mode
 
         initial_state: dict[str, Any] = {
-            "raw_query": request.query,
-            "city": request.city,
-            "country": request.country,
-            "category": request.category,
-            "date_from": request.date_from,
-            "date_to": request.date_to,
-            "budget_max": request.budget_max,
+            "raw_query": search_request.query,
+            "city": search_request.city,
+            "country": search_request.country,
+            "category": search_request.category,
+            "date_from": search_request.date_from,
+            "date_to": search_request.date_to,
+            "budget_max": search_request.budget_max,
             "demo_mode": demo_mode,
             "errors": [],
             "workflow_trace": [],
@@ -82,7 +84,7 @@ async def search_events(request: SearchRequest) -> SearchResponse:
         )
 
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Search workflow failed for query %r", request.query)
+        logger.exception("Search workflow failed for query %r", search_request.query)
         raise HTTPException(
             status_code=500,
             detail="An error occurred while processing your search. Please try again.",
@@ -121,7 +123,7 @@ async def search_events_htmx(request: Request) -> HTMLResponse:
         )
 
     try:
-        workflow = create_pulse_workflow()
+        workflow = request.app.state.workflow
 
         initial_state: dict[str, Any] = {
             "raw_query": query,
@@ -171,9 +173,9 @@ async def search_events_htmx(request: Request) -> HTMLResponse:
 # GET /api/search/demo  – demo results without any API calls
 # ---------------------------------------------------------------------------
 @router.get("/demo")
-async def search_demo() -> dict[str, Any]:
+async def search_demo(request: Request) -> dict[str, Any]:
     """Return demo search results without hitting live APIs."""
-    workflow = create_pulse_workflow()
+    workflow = request.app.state.workflow
 
     initial_state: dict[str, Any] = {
         "raw_query": "rock concerts in London this weekend",
