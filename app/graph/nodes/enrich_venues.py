@@ -2,9 +2,12 @@
 Enrich Venues Node - Enriches events with venue context data.
 """
 from app.graph.state import PulseGraphState
+from app.config.settings import settings
 from app.integrations.geoapify_client import GeoapifyClient
 from app.models.venue import VenueContext, NearbyPlace
 from typing import Optional
+import asyncio
+import time
 
 
 async def enrich_venues_node(state: PulseGraphState) -> PulseGraphState:
@@ -26,34 +29,33 @@ async def enrich_venues_node(state: PulseGraphState) -> PulseGraphState:
     enriched = []
     client = GeoapifyClient()
     errors = list(state.get("errors", []))
-    
-    for event_data in state.get("events_normalized", []):
-        try:
-            enriched_event = {"event": event_data}
-            
-            # Get venue context if coordinates available
-            if event_data.get("latitude") and event_data.get("longitude"):
-                venue_context = await _get_venue_context(
-                    client=client,
-                    event=event_data
-                )
-                enriched_event["venue_context"] = venue_context
-            else:
-                enriched_event["venue_context"] = None
-            
-            enriched.append(enriched_event)
-            
-        except Exception as e:
-            # Continue without enrichment on error
-            enriched.append({
-                "event": event_data,
-                "venue_context": None
-            })
+    started = time.perf_counter()
+    events = state.get("events_normalized", [])
+    limit = settings.context_enrichment_limit
+    enriched = [{"event": event_data, "venue_context": None} for event_data in events]
+
+    candidates = [
+        (idx, event_data)
+        for idx, event_data in enumerate(events[:limit])
+        if (
+            not settings.demo_mode
+            and event_data.get("latitude")
+            and event_data.get("longitude")
+        )
+    ]
+
+    tasks = [_get_venue_context(client=client, event=event_data) for _, event_data in candidates]
+    results = await asyncio.gather(*tasks, return_exceptions=True) if tasks else []
+
+    for (idx, event_data), result in zip(candidates, results):
+        if isinstance(result, Exception):
             errors.append({
                 "node": "enrich_venues",
                 "event_id": event_data.get("id"),
-                "error": str(e)
+                "error": str(result),
             })
+        else:
+            enriched[idx]["venue_context"] = result
     
     return {
         **state,
@@ -65,7 +67,9 @@ async def enrich_venues_node(state: PulseGraphState) -> PulseGraphState:
                 "node_name": "enrich_venues",
                 "status": "completed",
                 "tool_called": "geoapify",
-                "events_enriched": len([e for e in enriched if e.get("venue_context")])
+                "events_enriched": len([e for e in enriched if e.get("venue_context")]),
+                "events_considered": len(candidates),
+                "latency_ms": round((time.perf_counter() - started) * 1000, 2),
             }
         ]
     }

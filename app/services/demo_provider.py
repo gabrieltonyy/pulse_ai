@@ -68,6 +68,49 @@ class DemoProvider:
         Returns:
             List of Event objects matching the filters
         """
+        filtered_events = self._filter_events(
+            city=city,
+            country=country,
+            category=category,
+            keyword=keyword,
+            date_from=date_from,
+            date_to=date_to,
+            budget_max=budget_max,
+        )
+
+        if not filtered_events:
+            filtered_events = self._filter_events(
+                city=city,
+                country=country,
+                category=None,
+                keyword=None,
+                date_from=None,
+                date_to=None,
+                budget_max=budget_max,
+            )
+
+        # Sort by start date (upcoming first) and popularity
+        filtered_events.sort(
+            key=lambda e: (
+                e.start_datetime or datetime.max,
+                -(e.popularity_score or 0)
+            )
+        )
+        
+        # Apply limit
+        return filtered_events[:limit]
+
+    def _filter_events(
+        self,
+        city: Optional[str] = None,
+        country: Optional[str] = None,
+        category: Optional[str] = None,
+        keyword: Optional[str] = None,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
+        budget_max: Optional[float] = None,
+    ) -> list[Event]:
+        """Filter demo events, used for exact and relaxed demo searches."""
         filtered_events = self.events.copy()
         
         # Apply city filter
@@ -123,16 +166,7 @@ class DemoProvider:
                 if e.price_min is not None and e.price_min <= budget_max
             ]
         
-        # Sort by start date (upcoming first) and popularity
-        filtered_events.sort(
-            key=lambda e: (
-                e.start_datetime or datetime.max,
-                -(e.popularity_score or 0)
-            )
-        )
-        
-        # Apply limit
-        return filtered_events[:limit]
+        return filtered_events
     
     def get_event_by_id(self, event_id: str) -> Optional[Event]:
         """

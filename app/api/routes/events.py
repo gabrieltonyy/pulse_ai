@@ -2,25 +2,33 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path
 from fastapi.responses import PlainTextResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.database import get_db
 from app.db.repositories import EventRepository
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
+EventIdPath = Annotated[str, Path(regex=r"^[a-zA-Z0-9_\-]{1,64}$")]
+
 
 # ---------------------------------------------------------------------------
 # GET /api/events/{event_id}  – event detail
 # ---------------------------------------------------------------------------
 @router.get("/{event_id}")
-async def get_event(event_id: str):
+async def get_event(
+    event_id: EventIdPath,
+    session: AsyncSession = Depends(get_db),
+):
     """Return detailed information about a specific saved event."""
-    repo = EventRepository()
+    repo = EventRepository(session)
     event = await repo.get_by_id(event_id)
 
     if not event:
@@ -33,10 +41,13 @@ async def get_event(event_id: str):
 # POST /api/events/{event_id}/track-click  – outbound click tracking
 # ---------------------------------------------------------------------------
 @router.post("/{event_id}/track-click")
-async def track_click(event_id: str):
+async def track_click(
+    event_id: EventIdPath,
+    session: AsyncSession = Depends(get_db),
+):
     """Record a user click-through for analytics."""
     try:
-        repo = EventRepository()
+        repo = EventRepository(session)
         await repo.increment_click_count(event_id)
         return {"success": True, "event_id": event_id}
     except Exception as exc:  # noqa: BLE001
@@ -49,14 +60,17 @@ async def track_click(event_id: str):
 # GET /api/events/{event_id}/calendar  – .ics export
 # ---------------------------------------------------------------------------
 @router.get("/{event_id}/calendar", response_class=PlainTextResponse)
-async def export_calendar(event_id: str) -> PlainTextResponse:
+async def export_calendar(
+    event_id: EventIdPath,
+    session: AsyncSession = Depends(get_db),
+) -> PlainTextResponse:
     """
     Generate a standards-compliant iCalendar (.ics) file for the event.
 
     The response can be saved directly by the browser or imported into
     Google Calendar, Apple Calendar, Outlook, etc.
     """
-    repo = EventRepository()
+    repo = EventRepository(session)
     event = await repo.get_by_id(event_id)
 
     if not event:
@@ -72,10 +86,10 @@ async def export_calendar(event_id: str) -> PlainTextResponse:
                 return dt.strftime("%Y%m%dT%H%M%SZ")
             except ValueError:
                 pass
-        return datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     start_dt = _ical_dt(getattr(event, "start_datetime", None))
-    dtstamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    dtstamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
     title = _escape_ical(getattr(event, "title", "Event"))
     description = _escape_ical(getattr(event, "description", ""))

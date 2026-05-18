@@ -17,7 +17,9 @@ def test_health_endpoint():
     """Test health check"""
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "healthy"}
+    data = response.json()
+    assert data["status"] == "healthy"
+    assert data.get("service") in {None, "pulse-ai"}
 
 
 def test_demo_search():

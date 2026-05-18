@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from app.config.settings import settings
 from app.graph.workflow import create_pulse_workflow
 from app.models.search import SearchRequest, SearchResponse
 
@@ -19,6 +21,8 @@ router = APIRouter(prefix="/api/search", tags=["search"])
 # We reuse the same Jinja2Templates instance that is set on app.state in main.py
 # when available; otherwise fall back to a local instance.
 _templates = Jinja2Templates(directory="app/templates")
+
+_MAX_QUERY_LENGTH = 300
 
 
 # ---------------------------------------------------------------------------
@@ -40,35 +44,49 @@ async def search_events(request: SearchRequest) -> SearchResponse:
     8. Generate AI explanations for each recommendation
     9. Prepare final response
     """
+    started = time.perf_counter()
     try:
         workflow = create_pulse_workflow()
+
+        demo_mode = request.use_demo or request.demo_mode or settings.demo_mode
 
         initial_state: dict[str, Any] = {
             "raw_query": request.query,
             "city": request.city,
-            "country": request.country or "US",
+            "country": request.country,
             "category": request.category,
             "date_from": request.date_from,
             "date_to": request.date_to,
             "budget_max": request.budget_max,
-            "use_demo_data": request.use_demo,
+            "demo_mode": demo_mode,
             "errors": [],
             "workflow_trace": [],
         }
 
         result = await workflow.ainvoke(initial_state)
+        workflow_trace = [
+            *result.get("workflow_trace", []),
+            {
+                "node_name": "api_search_route",
+                "status": "completed",
+                "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+            },
+        ]
 
         return SearchResponse(
             success=True,
             summary=result.get("recommendation_summary", ""),
             events=result.get("ranked_events", []),
-            workflow_trace=result.get("workflow_trace", []),
+            workflow_trace=workflow_trace,
             errors=result.get("errors", []),
         )
 
     except Exception as exc:  # noqa: BLE001
         logger.exception("Search workflow failed for query %r", request.query)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while processing your search. Please try again.",
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -80,16 +98,25 @@ async def search_events_htmx(request: Request) -> HTMLResponse:
     HTMX variant: accepts form-encoded POST, returns rendered results.html fragment.
     The search form (search.html) targets this endpoint via hx-post="/api/search/htmx".
     """
+    started = time.perf_counter()
     form = await request.form()
     query: str = form.get("query", "")
     city: str | None = form.get("city") or None
     category: str | None = form.get("category") or None
     date_from: str | None = form.get("date_from") or None
     date_to: str | None = form.get("date_to") or None
+    use_demo = str(form.get("use_demo", "")).lower() in {"1", "true", "on", "yes"}
 
     if not query:
         return HTMLResponse(
             '<p class="text-red-600 font-medium">Please enter a search query.</p>',
+            status_code=422,
+        )
+
+    # Guard: reject queries that exceed the maximum allowed length.
+    if len(query) > _MAX_QUERY_LENGTH:
+        return HTMLResponse(
+            '<p class="text-red-600 font-medium">Search query is too long. Please keep it under 300 characters.</p>',
             status_code=422,
         )
 
@@ -99,17 +126,25 @@ async def search_events_htmx(request: Request) -> HTMLResponse:
         initial_state: dict[str, Any] = {
             "raw_query": query,
             "city": city,
-            "country": "US",
+            "country": form.get("country") or None,
             "category": category,
             "date_from": date_from,
             "date_to": date_to,
             "budget_max": None,
-            "use_demo_data": False,
+            "demo_mode": use_demo or settings.demo_mode,
             "errors": [],
             "workflow_trace": [],
         }
 
         result = await workflow.ainvoke(initial_state)
+        workflow_trace = [
+            *result.get("workflow_trace", []),
+            {
+                "node_name": "htmx_search_route",
+                "status": "completed",
+                "latency_ms": round((time.perf_counter() - started) * 1000, 2),
+            },
+        ]
 
         templates = request.app.state.templates
         return templates.TemplateResponse(
@@ -119,13 +154,15 @@ async def search_events_htmx(request: Request) -> HTMLResponse:
                 "summary": result.get("recommendation_summary", "No results found."),
                 "events": result.get("ranked_events", []),
                 "errors": result.get("errors", []),
+                "workflow_trace": workflow_trace,
             },
         )
 
     except Exception as exc:  # noqa: BLE001
         logger.exception("HTMX search failed for query %r", query)
+        # Never reflect exception text into HTML — XSS risk.
         return HTMLResponse(
-            f'<p class="text-red-600 font-medium">Search failed: {exc}</p>',
+            '<p class="text-red-600 font-medium">Search failed. Please try again.</p>',
             status_code=500,
         )
 
@@ -143,7 +180,7 @@ async def search_demo() -> dict[str, Any]:
         "city": "London",
         "country": "GB",
         "category": "Music",
-        "use_demo_data": True,
+        "demo_mode": True,
         "errors": [],
         "workflow_trace": [],
     }

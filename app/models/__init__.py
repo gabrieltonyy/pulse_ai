@@ -6,7 +6,7 @@ from app.models.api_cache import APICache
 from app.models.outbound_clicks import OutboundClick
 
 # Pydantic models
-from app.models.search import SearchIntent, SearchRequest, SearchValidationResult
+from app.models.search import SearchIntent, SearchRequest, SearchResponse, SearchValidationResult
 from app.models.event import Event, EventCardViewModel
 from app.models.venue import NearbyPlace, VenueContext
 from app.models.weather import WeatherContext
@@ -24,6 +24,7 @@ __all__ = [
     # Search models
     "SearchIntent",
     "SearchRequest",
+    "SearchResponse",
     "SearchValidationResult",
     # Event models
     "Event",

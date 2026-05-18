@@ -3,6 +3,7 @@
      summary  (str)          – recommendation summary sentence
      events   (list[RankedEvent])
      errors   (list[str])    – non-fatal workflow errors
+     workflow_trace (list)    – workflow execution trace
 #}
 
 {% if errors %}
@@ -59,8 +60,8 @@
         {% if ev.start_datetime %}
         <span>📅 {{ ev.start_datetime }}</span>
         {% endif %}
-        {% if ev.city %}
-        <span>🌍 {{ ev.city }}</span>
+        {% if ev.venue_city %}
+        <span>🌍 {{ ev.venue_city }}</span>
         {% endif %}
       </p>
 
@@ -71,9 +72,9 @@
         {% if ev.price_min == 0 %}
           Free
         {% elif ev.price_max and ev.price_max != ev.price_min %}
-          ${{ "%.0f"|format(ev.price_min) }} – ${{ "%.0f"|format(ev.price_max) }}
+          {{ ev.currency }} {{ "%.0f"|format(ev.price_min) }} – {{ ev.currency }} {{ "%.0f"|format(ev.price_max) }}
         {% else %}
-          From ${{ "%.0f"|format(ev.price_min) }}
+          From {{ ev.currency }} {{ "%.0f"|format(ev.price_min) }}
         {% endif %}
       </p>
       {% endif %}
@@ -101,9 +102,9 @@
 
       <!-- Actions -->
       <div class="flex flex-wrap gap-2">
-        {% if ev.url %}
+        {% if ev.provider_event_url %}
         <a
-          href="{{ ev.url }}"
+          href="{{ ev.provider_event_url }}"
           target="_blank"
           rel="noopener noreferrer"
           class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
@@ -127,4 +128,29 @@
   </div>
 
 </div>
+
+{% if workflow_trace %}
+<div class="bg-white rounded-2xl shadow-md p-6 mt-4">
+  <h3 class="text-sm font-semibold text-gray-700 mb-3">Workflow trace</h3>
+  <ol class="space-y-2">
+    {% for step in workflow_trace %}
+    <li class="text-xs text-gray-600 flex flex-wrap gap-2">
+      <span class="font-medium text-gray-800">{{ step.node_name or step.node or "workflow" }}</span>
+      {% if step.status %}
+      <span>{{ step.status }}</span>
+      {% endif %}
+      {% if step.provider %}
+      <span>{{ step.provider }}</span>
+      {% endif %}
+      {% if step.events_count is defined and step.events_count is not none %}
+      <span>{{ step.events_count }} events</span>
+      {% endif %}
+      {% if step.events_ranked is defined and step.events_ranked is not none %}
+      <span>{{ step.events_ranked }} ranked</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</div>
+{% endif %}
 {% endif %}

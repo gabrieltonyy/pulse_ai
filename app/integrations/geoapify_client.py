@@ -5,7 +5,7 @@ Handles location and places search.
 
 import httpx
 from typing import Optional, List, Dict, Any
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
 from app.config.settings import settings
 
@@ -17,11 +17,11 @@ class GeoapifyClient:
         """Initialize Geoapify client with settings."""
         self.api_key = settings.geoapify_api_key
         self.base_url = settings.geoapify_base_url
-        self.timeout = 10.0
+        self.timeout = float(settings.geoapify_timeout)
     
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
+        stop=stop_after_attempt(2),
+        wait=wait_fixed(0.5),
         retry=retry_if_exception_type((httpx.TimeoutException, httpx.HTTPStatusError)),
         reraise=True
     )
@@ -80,8 +80,8 @@ class GeoapifyClient:
             return data.get("features", [])
     
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
+        stop=stop_after_attempt(2),
+        wait=wait_fixed(0.5),
         retry=retry_if_exception_type((httpx.TimeoutException, httpx.HTTPStatusError)),
         reraise=True
     )

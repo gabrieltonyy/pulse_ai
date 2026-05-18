@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+pytestmark = pytest.mark.live_api
+
 
 class TestWatsonxAIConnection:
     """Test watsonx.ai LLM API connection"""

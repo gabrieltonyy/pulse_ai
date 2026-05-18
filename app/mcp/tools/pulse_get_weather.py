@@ -1,6 +1,9 @@
 """MCP tool for retrieving event weather forecasts via OpenWeather."""
 from __future__ import annotations
 
+from datetime import datetime
+
+from app.config.settings import settings
 from app.integrations.openweather_client import OpenWeatherClient
 
 
@@ -28,12 +31,24 @@ async def pulse_get_weather(
         - is_outdoor_friendly (bool) – True when conditions are favourable
         - weather_note (str)         – one-sentence advisory for the user
     """
+    if settings.demo_mode:
+        return {
+            "temperature": None,
+            "condition": "unknown",
+            "outdoor_suitability": "unknown",
+            "weather_note": "Demo mode: live weather lookup skipped.",
+        }
+
     client = OpenWeatherClient()
 
-    weather = await client.get_weather(
-        lat=latitude,
-        lon=longitude,
-        date=date,
-    )
+    try:
+        event_date = datetime.fromisoformat(date).date()
+        weather = await client.get_weather(
+            lat=latitude,
+            lon=longitude,
+            event_date=event_date,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {"temperature": None, "outdoor_suitability": "unknown", "error": str(exc)}
 
     return weather

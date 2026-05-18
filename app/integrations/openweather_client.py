@@ -6,7 +6,7 @@ Handles weather data retrieval.
 import httpx
 from typing import Optional, Dict, Any
 from datetime import date, datetime
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
 from app.config.settings import settings
 
@@ -18,11 +18,11 @@ class OpenWeatherClient:
         """Initialize OpenWeather client with settings."""
         self.api_key = settings.openweather_api_key
         self.base_url = settings.openweather_base_url
-        self.timeout = 10.0
+        self.timeout = float(settings.openweather_timeout)
     
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
+        stop=stop_after_attempt(2),
+        wait=wait_fixed(0.5),
         retry=retry_if_exception_type((httpx.TimeoutException, httpx.HTTPStatusError)),
         reraise=True
     )
@@ -53,8 +53,9 @@ class OpenWeatherClient:
         if event_date and event_date > today:
             # Use forecast API for future dates (up to 5 days)
             days_ahead = (event_date - today).days
-            if days_ahead <= 5:
+            if days_ahead <= settings.weather_forecast_horizon_days:
                 return await self._get_forecast(lat, lon, event_date)
+            return None
         
         # Use current weather API
         return await self._get_current_weather(lat, lon)
@@ -91,8 +92,8 @@ class OpenWeatherClient:
             return response.json()
     
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
+        stop=stop_after_attempt(2),
+        wait=wait_fixed(0.5),
         retry=retry_if_exception_type((httpx.TimeoutException, httpx.HTTPStatusError)),
         reraise=True
     )

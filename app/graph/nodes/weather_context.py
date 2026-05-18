@@ -2,10 +2,13 @@
 Weather Context Node - Adds weather context to events.
 """
 from app.graph.state import PulseGraphState
+from app.config.settings import settings
 from app.integrations.openweather_client import OpenWeatherClient
 from app.models.weather import WeatherContext
 from datetime import datetime
 from typing import Optional, Literal
+import asyncio
+import time
 
 
 async def weather_context_node(state: PulseGraphState) -> PulseGraphState:
@@ -28,34 +31,29 @@ async def weather_context_node(state: PulseGraphState) -> PulseGraphState:
     enriched = state.get("enriched_events", [])
     errors = list(state.get("errors", []))
     weather_added_count = 0
-    
+    started = time.perf_counter()
+
     for enriched_event in enriched:
-        event = enriched_event["event"]
-        
-        try:
-            # Only add weather for outdoor events with coordinates and dates
-            if _should_add_weather(event):
-                weather_context = await _get_weather_context(
-                    client=client,
-                    event=event
-                )
-                
-                if weather_context:
-                    enriched_event["weather_context"] = weather_context
-                    weather_added_count += 1
-                else:
-                    enriched_event["weather_context"] = None
-            else:
-                enriched_event["weather_context"] = None
-                
-        except Exception as e:
-            # Continue without weather on error
-            enriched_event["weather_context"] = None
+        enriched_event["weather_context"] = None
+
+    candidates = [
+        (idx, enriched_event["event"])
+        for idx, enriched_event in enumerate(enriched[:settings.context_enrichment_limit])
+        if not settings.demo_mode and _should_add_weather(enriched_event["event"])
+    ]
+    tasks = [_get_weather_context(client=client, event=event) for _, event in candidates]
+    results = await asyncio.gather(*tasks, return_exceptions=True) if tasks else []
+
+    for (idx, event), result in zip(candidates, results):
+        if isinstance(result, Exception):
             errors.append({
                 "node": "weather_context",
                 "event_id": event.get("id"),
-                "error": str(e)
+                "error": str(result),
             })
+        elif result:
+            enriched[idx]["weather_context"] = result
+            weather_added_count += 1
     
     return {
         **state,
@@ -67,7 +65,9 @@ async def weather_context_node(state: PulseGraphState) -> PulseGraphState:
                 "node_name": "weather_context",
                 "status": "completed",
                 "tool_called": "openweather",
-                "weather_added": weather_added_count
+                "weather_added": weather_added_count,
+                "events_considered": len(candidates),
+                "latency_ms": round((time.perf_counter() - started) * 1000, 2),
             }
         ]
     }
@@ -90,11 +90,25 @@ def _should_add_weather(event: dict) -> bool:
     if not event.get("start_datetime"):
         return False
     
-    # Check if likely outdoor event
-    category = event.get("category", "").lower()
-    outdoor_categories = ["sports", "festival", "music", "outdoor", "concert", "fair"]
-    
-    return any(cat in category for cat in outdoor_categories)
+    if _event_date_outside_forecast_horizon(event):
+        return False
+
+    # Check if likely outdoor event. Generic music/concerts are often indoor, so only
+    # enrich when outdoor intent is explicit.
+    text = f"{event.get('title', '')} {event.get('description', '')} {event.get('category', '')}".lower()
+    outdoor_terms = ["outdoor", "open air", "festival", "park", "stadium", "football", "soccer", "fair"]
+    return any(term in text for term in outdoor_terms)
+
+
+def _event_date_outside_forecast_horizon(event: dict) -> bool:
+    try:
+        event_datetime = event["start_datetime"]
+        if isinstance(event_datetime, str):
+            event_datetime = datetime.fromisoformat(event_datetime.replace("Z", "+00:00"))
+        days_ahead = (event_datetime.date() - datetime.now().date()).days
+        return days_ahead < 0 or days_ahead > settings.weather_forecast_horizon_days
+    except Exception:
+        return True
 
 
 async def _get_weather_context(

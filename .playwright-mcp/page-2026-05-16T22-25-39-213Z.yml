@@ -1,0 +1,51 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - link "🎯 Pulse AI" [ref=e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e5]: 🎯
+        - generic [ref=e6]: Pulse AI
+      - generic [ref=e7]: AI-Powered Event Discovery
+      - generic [ref=e8]:
+        - link "Demo API" [ref=e9] [cursor=pointer]:
+          - /url: /api/search/demo
+        - link "API Docs" [ref=e10] [cursor=pointer]:
+          - /url: /docs
+  - main [ref=e11]:
+    - generic [ref=e12]:
+      - generic [ref=e13]:
+        - heading "Find Your Next Event 🎶" [level=1] [ref=e14]
+        - paragraph [ref=e15]: Describe what you're looking for in plain English – Pulse AI handles the rest.
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e19]: What are you looking for?
+          - textbox "What are you looking for?" [ref=e20]:
+            - /placeholder: e.g. jazz concerts in Berlin next weekend under $50
+        - generic [ref=e21]:
+          - generic [ref=e22]:
+            - generic [ref=e23]: City (optional)
+            - textbox "e.g. New York" [ref=e24]
+          - generic [ref=e25]:
+            - generic [ref=e26]: Category (optional)
+            - combobox [ref=e27]:
+              - option "Any category" [selected]
+              - option "🎵 Music"
+              - option "⚽ Sports"
+              - option "🎨 Arts & Theatre"
+              - option "👨‍👩‍👧 Family"
+              - option "😂 Comedy"
+              - option "🎉 Festival"
+              - option "🎬 Film"
+        - generic [ref=e28]:
+          - generic [ref=e29]:
+            - generic [ref=e30]: From date
+            - textbox [ref=e31]
+          - generic [ref=e32]:
+            - generic [ref=e33]: To date
+            - textbox [ref=e34]
+        - button "🔍 Search Events" [ref=e35] [cursor=pointer]
+      - paragraph [ref=e38]:
+        - text: Want to see an example?
+        - link "Try the demo" [ref=e39] [cursor=pointer]:
+          - /url: "#"
+  - contentinfo [ref=e40]: Powered by IBM watsonx.ai · Ticketmaster · Geoapify · OpenWeather | IBM Bob AI Hackathon 2026

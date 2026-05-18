@@ -2,7 +2,9 @@
 Parse Query Node - Extracts structured intent from user query using watsonx.ai LLM.
 """
 from app.graph.state import PulseGraphState
+from app.config.settings import settings
 from app.services.llm_service import LLMService
+import time
 
 
 async def parse_query_node(state: PulseGraphState) -> PulseGraphState:
@@ -26,6 +28,7 @@ async def parse_query_node(state: PulseGraphState) -> PulseGraphState:
     llm_service = LLMService()
     fallback_used = False
     error_message = None
+    started = time.perf_counter()
     
     try:
         # Use LLM to parse query
@@ -33,15 +36,15 @@ async def parse_query_node(state: PulseGraphState) -> PulseGraphState:
         
         # Update state with parsed intent
         state["parsed_intent"] = intent.model_dump()
-        state["city"] = intent.city
-        state["country"] = intent.country
-        state["category"] = intent.category
-        state["keyword"] = intent.keyword
-        state["date_from"] = intent.date_from.isoformat() if intent.date_from else None
-        state["date_to"] = intent.date_to.isoformat() if intent.date_to else None
-        state["budget_max"] = intent.budget_max
-        state["currency"] = intent.currency
-        state["preferences"] = intent.preferences
+        state["city"] = state.get("city") or intent.city
+        state["country"] = state.get("country") or intent.country
+        state["category"] = state.get("category") or intent.category
+        state["keyword"] = state.get("keyword") or intent.keyword
+        state["date_from"] = state.get("date_from") or (intent.date_from.isoformat() if intent.date_from else None)
+        state["date_to"] = state.get("date_to") or (intent.date_to.isoformat() if intent.date_to else None)
+        state["budget_max"] = state.get("budget_max") if state.get("budget_max") is not None else intent.budget_max
+        state["currency"] = state.get("currency") or intent.currency
+        state["preferences"] = state.get("preferences") or intent.preferences
         
     except Exception as e:
         # Fallback already handled in LLMService, but catch any unexpected errors
@@ -51,22 +54,23 @@ async def parse_query_node(state: PulseGraphState) -> PulseGraphState:
         # Use deterministic fallback
         intent = llm_service._deterministic_fallback(state["raw_query"])
         state["parsed_intent"] = intent.model_dump()
-        state["city"] = intent.city
-        state["country"] = intent.country
-        state["category"] = intent.category
-        state["keyword"] = intent.keyword
-        state["date_from"] = intent.date_from.isoformat() if intent.date_from else None
-        state["date_to"] = intent.date_to.isoformat() if intent.date_to else None
-        state["budget_max"] = intent.budget_max
-        state["currency"] = intent.currency
-        state["preferences"] = intent.preferences
+        state["city"] = state.get("city") or intent.city
+        state["country"] = state.get("country") or intent.country
+        state["category"] = state.get("category") or intent.category
+        state["keyword"] = state.get("keyword") or intent.keyword
+        state["date_from"] = state.get("date_from") or (intent.date_from.isoformat() if intent.date_from else None)
+        state["date_to"] = state.get("date_to") or (intent.date_to.isoformat() if intent.date_to else None)
+        state["budget_max"] = state.get("budget_max") if state.get("budget_max") is not None else intent.budget_max
+        state["currency"] = state.get("currency") or intent.currency
+        state["preferences"] = state.get("preferences") or intent.preferences
     
     # Add to workflow trace
     trace_entry = {
         "node_name": "parse_query",
         "status": "completed",
-        "tool_called": "deterministic_parser" if fallback_used else "watsonx.ai",
-        "fallback_used": fallback_used
+        "tool_called": "deterministic_parser" if fallback_used or settings.demo_mode else "watsonx.ai",
+        "fallback_used": fallback_used or settings.demo_mode,
+        "latency_ms": round((time.perf_counter() - started) * 1000, 2),
     }
     
     if error_message:

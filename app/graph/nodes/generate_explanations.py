@@ -2,9 +2,11 @@
 Generate Explanations Node - Generates natural language explanations for recommendations.
 """
 from app.graph.state import PulseGraphState
+from app.config.settings import settings
 from app.services.llm_service import LLMService
 from app.models.event import Event
 from app.models.recommendation import RecommendationScore
+import time
 
 
 async def generate_explanations_node(state: PulseGraphState) -> PulseGraphState:
@@ -25,6 +27,7 @@ async def generate_explanations_node(state: PulseGraphState) -> PulseGraphState:
     llm_service = LLMService()
     errors = list(state.get("errors", []))
     explanations_generated = 0
+    started = time.perf_counter()
     
     for ranked_event in state.get("ranked_events", []):
         event_data = ranked_event["event"]
@@ -62,8 +65,9 @@ async def generate_explanations_node(state: PulseGraphState) -> PulseGraphState:
             {
                 "node_name": "generate_explanations",
                 "status": "completed",
-                "tool_called": "watsonx.ai",
-                "explanations_generated": explanations_generated
+                "tool_called": "template",
+                "explanations_generated": explanations_generated,
+                "latency_ms": round((time.perf_counter() - started) * 1000, 2),
             }
         ]
     }

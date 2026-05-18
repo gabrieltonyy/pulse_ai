@@ -34,6 +34,15 @@ async def pulse_search_events(
         - workflow_trace (list) – node execution trace
         - errors (list)   – any non-fatal errors encountered
     """
+    if not query or len(query.strip()) < 2:
+        return {
+            "success": False,
+            "message": "Query must be at least 2 characters.",
+            "events": [],
+            "workflow_trace": [],
+            "errors": [{"node": "pulse_search_events", "error": "invalid query"}],
+        }
+
     workflow = create_pulse_workflow()
  
     initial_state: dict[str, Any] = {

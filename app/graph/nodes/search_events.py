@@ -2,6 +2,7 @@
 Search Events Node - Searches for events using Ticketmaster API or demo data.
 """
 from datetime import datetime
+import time
 from app.graph.state import PulseGraphState
 from app.integrations.ticketmaster_client import TicketmasterClient
 from app.services.demo_provider import DemoProvider
@@ -26,9 +27,10 @@ async def search_events_node(state: PulseGraphState) -> PulseGraphState:
     fallback_used = False
     provider = "ticketmaster"
     error_message = None
+    started = time.perf_counter()
     
     # Check if demo mode or no API key
-    if state.get("demo_mode") or not settings.ticketmaster_api_key:
+    if state.get("demo_mode") or state.get("use_demo_data") or settings.demo_mode or not settings.ticketmaster_api_key:
         fallback_used = True
         provider = "demo"
         events_raw = await _search_demo_events(state)
@@ -61,7 +63,8 @@ async def search_events_node(state: PulseGraphState) -> PulseGraphState:
         "tool_called": "pulse_search_events",
         "provider": provider,
         "fallback_used": fallback_used,
-        "events_count": len(events_raw)
+        "events_count": len(events_raw),
+        "latency_ms": round((time.perf_counter() - started) * 1000, 2),
     }
     
     if error_message:

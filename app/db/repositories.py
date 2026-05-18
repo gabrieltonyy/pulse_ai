@@ -2,9 +2,9 @@
 
 Provides async repository pattern for database operations.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
-from sqlalchemy import select, delete, and_, update
+from sqlalchemy import select, delete, and_, update, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.saved_events import SavedEvent
@@ -16,65 +16,47 @@ from app.models.event import Event
 
 class EventRepository:
     """Repository for event operations."""
-    
-    def __init__(self, session: AsyncSession = None):
-        """Initialize repository with optional database session."""
+
+    def __init__(self, session: AsyncSession):
+        """Initialize repository with a database session."""
         self.session = session
-    
+
     async def get_by_id(self, event_id: str) -> Optional[Event]:
         """
         Get event by ID.
-        
+
         Args:
             event_id: Event identifier
-        
+
         Returns:
             Event instance or None if not found
         """
-        if not self.session:
-            from app.db.database import get_session
-            async with get_session() as session:
-                result = await session.execute(
-                    select(Event).where(Event.id == event_id)
-                )
-                return result.scalar_one_or_none()
-        
         result = await self.session.execute(
             select(Event).where(Event.id == event_id)
         )
         return result.scalar_one_or_none()
-    
+
     async def increment_click_count(self, event_id: str):
         """
         Increment click count for event tracking.
-        
+
         Args:
             event_id: Event identifier
         """
-        if not self.session:
-            from app.db.database import get_session
-            async with get_session() as session:
-                await session.execute(
-                    update(Event)
-                    .where(Event.id == event_id)
-                    .values(click_count=Event.click_count + 1)
-                )
-                await session.commit()
-        else:
-            await self.session.execute(
-                update(Event)
-                .where(Event.id == event_id)
-                .values(click_count=Event.click_count + 1)
-            )
+        await self.session.execute(
+            update(Event)
+            .where(Event.id == event_id)
+            .values(click_count=Event.click_count + 1)
+        )
 
 
 class SavedEventsRepository:
     """Repository for saved events operations."""
-    
+
     def __init__(self, session: AsyncSession):
         """Initialize repository with database session."""
         self.session = session
-    
+
     async def save_event(
         self,
         session_id: str,
@@ -85,14 +67,14 @@ class SavedEventsRepository:
     ) -> SavedEvent:
         """
         Save an event for a user session.
-        
+
         Args:
             session_id: User session identifier
             event_id: Event identifier
             provider: Event provider name
             title: Event title
             event_json: JSON string of full event data
-        
+
         Returns:
             Created SavedEvent instance
         """
@@ -106,14 +88,14 @@ class SavedEventsRepository:
         self.session.add(saved_event)
         await self.session.flush()
         return saved_event
-    
+
     async def get_by_session(self, session_id: str) -> List[SavedEvent]:
         """
         Get all saved events for a session.
-        
+
         Args:
             session_id: User session identifier
-        
+
         Returns:
             List of SavedEvent instances
         """
@@ -123,14 +105,14 @@ class SavedEventsRepository:
             .order_by(SavedEvent.created_at.desc())
         )
         return list(result.scalars().all())
-    
+
     async def get_by_id(self, saved_event_id: int) -> Optional[SavedEvent]:
         """
         Get a saved event by ID.
-        
+
         Args:
             saved_event_id: Saved event ID
-        
+
         Returns:
             SavedEvent instance or None
         """
@@ -138,14 +120,14 @@ class SavedEventsRepository:
             select(SavedEvent).where(SavedEvent.id == saved_event_id)
         )
         return result.scalar_one_or_none()
-    
+
     async def delete_by_id(self, saved_event_id: int) -> bool:
         """
         Delete a saved event by ID.
-        
+
         Args:
             saved_event_id: Saved event ID
-        
+
         Returns:
             True if deleted, False if not found
         """
@@ -153,15 +135,15 @@ class SavedEventsRepository:
             delete(SavedEvent).where(SavedEvent.id == saved_event_id)
         )
         return result.rowcount > 0
-    
+
     async def exists(self, session_id: str, event_id: str) -> bool:
         """
         Check if an event is already saved for a session.
-        
+
         Args:
             session_id: User session identifier
             event_id: Event identifier
-        
+
         Returns:
             True if event is saved, False otherwise
         """
@@ -180,11 +162,11 @@ class SavedEventsRepository:
 
 class SearchHistoryRepository:
     """Repository for search history operations."""
-    
+
     def __init__(self, session: AsyncSession):
         """Initialize repository with database session."""
         self.session = session
-    
+
     async def create_search(
         self,
         raw_query: str,
@@ -195,14 +177,14 @@ class SearchHistoryRepository:
     ) -> SearchHistory:
         """
         Record a search query.
-        
+
         Args:
             raw_query: The raw search query string
             session_id: Optional user session identifier
             parsed_intent_json: Optional JSON string of parsed intent
             result_count: Number of results returned
             fallback_used: Whether fallback data was used
-        
+
         Returns:
             Created SearchHistory instance
         """
@@ -216,7 +198,7 @@ class SearchHistoryRepository:
         self.session.add(search)
         await self.session.flush()
         return search
-    
+
     async def get_by_session(
         self,
         session_id: str,
@@ -224,11 +206,11 @@ class SearchHistoryRepository:
     ) -> List[SearchHistory]:
         """
         Get search history for a session.
-        
+
         Args:
             session_id: User session identifier
             limit: Maximum number of records to return
-        
+
         Returns:
             List of SearchHistory instances
         """
@@ -239,14 +221,14 @@ class SearchHistoryRepository:
             .limit(limit)
         )
         return list(result.scalars().all())
-    
+
     async def get_recent(self, limit: int = 100) -> List[SearchHistory]:
         """
         Get recent searches across all sessions.
-        
+
         Args:
             limit: Maximum number of records to return
-        
+
         Returns:
             List of SearchHistory instances
         """
@@ -260,11 +242,11 @@ class SearchHistoryRepository:
 
 class ApiCacheRepository:
     """Repository for API cache operations."""
-    
+
     def __init__(self, session: AsyncSession):
         """Initialize repository with database session."""
         self.session = session
-    
+
     async def set_cache(
         self,
         cache_key: str,
@@ -276,7 +258,7 @@ class ApiCacheRepository:
     ) -> APICache:
         """
         Store API response in cache.
-        
+
         Args:
             cache_key: Unique cache key
             tool_name: Name of the tool/API
@@ -284,22 +266,19 @@ class ApiCacheRepository:
             response_json: JSON string of the response
             expires_at: Cache expiration datetime
             provider: Optional provider name
-        
+
         Returns:
             Created or updated APICache instance
         """
-        # Check if cache entry exists
         existing = await self.get_cache(cache_key)
-        
+
         if existing:
-            # Update existing entry
             existing.response_json = response_json
             existing.expires_at = expires_at
             existing.request_hash = request_hash
             await self.session.flush()
             return existing
         else:
-            # Create new entry
             cache_entry = APICache(
                 cache_key=cache_key,
                 tool_name=tool_name,
@@ -311,14 +290,14 @@ class ApiCacheRepository:
             self.session.add(cache_entry)
             await self.session.flush()
             return cache_entry
-    
+
     async def get_cache(self, cache_key: str) -> Optional[APICache]:
         """
         Get cached API response.
-        
+
         Args:
             cache_key: Unique cache key
-        
+
         Returns:
             APICache instance or None if not found or expired
         """
@@ -327,31 +306,31 @@ class ApiCacheRepository:
             .where(
                 and_(
                     APICache.cache_key == cache_key,
-                    APICache.expires_at > datetime.utcnow()
+                    APICache.expires_at > datetime.now(timezone.utc)
                 )
             )
         )
         return result.scalar_one_or_none()
-    
+
     async def delete_expired(self) -> int:
         """
         Delete expired cache entries.
-        
+
         Returns:
             Number of deleted entries
         """
         result = await self.session.execute(
-            delete(APICache).where(APICache.expires_at <= datetime.utcnow())
+            delete(APICache).where(APICache.expires_at <= datetime.now(timezone.utc))
         )
         return result.rowcount
-    
+
     async def clear_by_tool(self, tool_name: str) -> int:
         """
         Clear all cache entries for a specific tool.
-        
+
         Args:
             tool_name: Name of the tool
-        
+
         Returns:
             Number of deleted entries
         """
@@ -363,11 +342,11 @@ class ApiCacheRepository:
 
 class OutboundClicksRepository:
     """Repository for outbound clicks tracking."""
-    
+
     def __init__(self, session: AsyncSession):
         """Initialize repository with database session."""
         self.session = session
-    
+
     async def record_click(
         self,
         event_id: str,
@@ -376,12 +355,12 @@ class OutboundClicksRepository:
     ) -> OutboundClick:
         """
         Record an outbound click to an event.
-        
+
         Args:
             event_id: Event identifier
             provider: Event provider name
             session_id: Optional user session identifier
-        
+
         Returns:
             Created OutboundClick instance
         """
@@ -393,14 +372,14 @@ class OutboundClicksRepository:
         self.session.add(click)
         await self.session.flush()
         return click
-    
+
     async def get_by_event(self, event_id: str) -> List[OutboundClick]:
         """
         Get all clicks for a specific event.
-        
+
         Args:
             event_id: Event identifier
-        
+
         Returns:
             List of OutboundClick instances
         """
@@ -410,7 +389,7 @@ class OutboundClicksRepository:
             .order_by(OutboundClick.clicked_at.desc())
         )
         return list(result.scalars().all())
-    
+
     async def get_by_session(
         self,
         session_id: str,
@@ -418,11 +397,11 @@ class OutboundClicksRepository:
     ) -> List[OutboundClick]:
         """
         Get clicks for a specific session.
-        
+
         Args:
             session_id: User session identifier
             limit: Maximum number of records to return
-        
+
         Returns:
             List of OutboundClick instances
         """
@@ -433,22 +412,21 @@ class OutboundClicksRepository:
             .limit(limit)
         )
         return list(result.scalars().all())
-    
+
     async def count_by_event(self, event_id: str) -> int:
         """
-        Count total clicks for an event.
-        
+        Count total clicks for an event using SQL COUNT (not Python len).
+
         Args:
             event_id: Event identifier
-        
+
         Returns:
             Number of clicks
         """
         result = await self.session.execute(
-            select(OutboundClick.id)
-            .where(OutboundClick.event_id == event_id)
+            select(func.count()).where(OutboundClick.event_id == event_id)
         )
-        return len(list(result.scalars().all()))
+        return result.scalar_one()
 
 
 # Made with Bob

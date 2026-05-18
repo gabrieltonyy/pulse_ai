@@ -6,35 +6,40 @@ echo "================================"
 
 echo ""
 echo "📦 Installing test dependencies..."
-pip install -q pytest pytest-asyncio pytest-cov httpx
+.venv/bin/python -m pip install -q pytest pytest-asyncio pytest-cov httpx
 
 echo ""
 echo "🔧 Running unit tests..."
-pytest tests/test_ranking_service.py -v
+.venv/bin/python -m pytest tests/test_ranking_service.py -v
 
-echo ""
-echo "🔌 Running API connection tests..."
-pytest tests/test_api_connections.py -v
+if [ "${RUN_LIVE_API_TESTS:-0}" = "1" ]; then
+  echo ""
+  echo "🔌 Running live API connection tests..."
+  .venv/bin/python -m pytest tests/test_api_connections.py -v -m live_api
+else
+  echo ""
+  echo "🔌 Skipping live API connection tests (set RUN_LIVE_API_TESTS=1 to enable)"
+fi
 
 echo ""
 echo "🔗 Running integration tests..."
-pytest tests/test_workflow_integration.py -v -m "not slow"
+.venv/bin/python -m pytest tests/test_workflow_integration.py -v -m "not slow and not live_api"
 
 echo ""
 echo "🌐 Running API route tests..."
-pytest tests/test_api_routes.py -v
+.venv/bin/python -m pytest tests/test_api_routes.py -v -m "not live_api"
 
 echo ""
 echo "🛠️ Running MCP tool tests..."
-pytest tests/test_mcp_tools.py -v
+.venv/bin/python -m pytest tests/test_mcp_tools.py -v -m "not live_api"
 
 echo ""
 echo "⚡ Running performance tests..."
-pytest tests/test_performance.py -v
+.venv/bin/python -m pytest tests/test_performance.py -v -m "not live_api"
 
 echo ""
 echo "📊 Generating coverage report..."
-pytest tests/ --cov=app --cov-report=term-missing --cov-report=html
+.venv/bin/python -m pytest tests/ -m "not live_api" --cov=app --cov-report=term-missing --cov-report=html
 
 echo ""
 echo "✅ All tests complete!"

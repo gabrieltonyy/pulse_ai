@@ -5,8 +5,8 @@ Handles event search with retry logic and rate limiting.
 
 import httpx
 from typing import Optional, List, Dict, Any
-from datetime import date
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from datetime import date, datetime
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
 from app.config.settings import settings
 
@@ -18,11 +18,11 @@ class TicketmasterClient:
         """Initialize Ticketmaster client with settings."""
         self.api_key = settings.ticketmaster_api_key
         self.base_url = settings.ticketmaster_base_url
-        self.timeout = 10.0
+        self.timeout = float(settings.ticketmaster_timeout)
     
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10),
+        stop=stop_after_attempt(2),
+        wait=wait_fixed(0.5),
         retry=retry_if_exception_type((httpx.TimeoutException, httpx.HTTPStatusError)),
         reraise=True
     )
@@ -57,8 +57,9 @@ class TicketmasterClient:
         """
         params = {
             "apikey": self.api_key,
-            "size": size,
-            "sort": "date,asc"
+            "source": "ticketmaster",
+            "size": min(size or settings.ticketmaster_default_size, 10),
+            "sort": settings.ticketmaster_default_sort,
         }
         
         # Add optional parameters
@@ -78,10 +79,10 @@ class TicketmasterClient:
             params["keyword"] = keyword
         
         if date_from:
-            params["startDateTime"] = f"{date_from.isoformat()}T00:00:00Z"
+            params["startDateTime"] = self._to_start_utc(date_from)
         
         if date_to:
-            params["endDateTime"] = f"{date_to.isoformat()}T23:59:59Z"
+            params["endDateTime"] = self._to_end_utc(date_to)
         
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             response = await client.get(
@@ -165,6 +166,16 @@ class TicketmasterClient:
             "mexico": "MX",
         }
         return country_codes.get(country.lower(), "US")
+
+    def _to_start_utc(self, value: date | datetime) -> str:
+        if isinstance(value, datetime):
+            return value.strftime("%Y-%m-%dT%H:%M:%SZ")
+        return f"{value.isoformat()}T00:00:00Z"
+
+    def _to_end_utc(self, value: date | datetime) -> str:
+        if isinstance(value, datetime):
+            return value.strftime("%Y-%m-%dT%H:%M:%SZ")
+        return f"{value.isoformat()}T23:59:59Z"
 
 
 # Made with Bob
