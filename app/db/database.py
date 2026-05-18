@@ -32,19 +32,26 @@ def get_engine() -> AsyncEngine:
     global engine
     
     if engine is None:
-        # Configure connection pool based on environment
-        pool_class = QueuePool if settings.is_production else NullPool
-        
-        engine = create_async_engine(
-            settings.database_url,
-            echo=settings.debug,
-            pool_size=settings.database_pool_size,
-            max_overflow=settings.database_max_overflow,
-            pool_timeout=settings.database_pool_timeout,
-            pool_recycle=settings.database_pool_recycle,
-            pool_pre_ping=True,  # Verify connections before using
-            poolclass=pool_class,
-        )
+        engine_kwargs = {
+            "echo": settings.debug,
+            "pool_pre_ping": True,  # Verify connections before using
+        }
+
+        if settings.is_production:
+            engine_kwargs.update(
+                {
+                    "poolclass": QueuePool,
+                    "pool_size": settings.database_pool_size,
+                    "max_overflow": settings.database_max_overflow,
+                    "pool_timeout": settings.database_pool_timeout,
+                    "pool_recycle": settings.database_pool_recycle,
+                }
+            )
+        else:
+            # NullPool is intentional for dev/test so connections are not reused.
+            engine_kwargs["poolclass"] = NullPool
+
+        engine = create_async_engine(settings.database_url, **engine_kwargs)
     
     return engine
 

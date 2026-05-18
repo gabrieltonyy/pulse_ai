@@ -25,10 +25,10 @@ EventIdPath = Annotated[str, Path(regex=r"^[a-zA-Z0-9_\-]{1,64}$")]
 @router.get("/{event_id}")
 async def get_event(
     event_id: EventIdPath,
-    session: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Return detailed information about a specific saved event."""
-    repo = EventRepository(session)
+    repo = EventRepository(session=db)
     event = await repo.get_by_id(event_id)
 
     if not event:
@@ -43,11 +43,11 @@ async def get_event(
 @router.post("/{event_id}/track-click")
 async def track_click(
     event_id: EventIdPath,
-    session: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """Record a user click-through for analytics."""
     try:
-        repo = EventRepository(session)
+        repo = EventRepository(session=db)
         await repo.increment_click_count(event_id)
         return {"success": True, "event_id": event_id}
     except Exception as exc:  # noqa: BLE001
@@ -62,7 +62,7 @@ async def track_click(
 @router.get("/{event_id}/calendar", response_class=PlainTextResponse)
 async def export_calendar(
     event_id: EventIdPath,
-    session: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> PlainTextResponse:
     """
     Generate a standards-compliant iCalendar (.ics) file for the event.
@@ -70,7 +70,7 @@ async def export_calendar(
     The response can be saved directly by the browser or imported into
     Google Calendar, Apple Calendar, Outlook, etc.
     """
-    repo = EventRepository(session)
+    repo = EventRepository(session=db)
     event = await repo.get_by_id(event_id)
 
     if not event:
