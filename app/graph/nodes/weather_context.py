@@ -28,13 +28,13 @@ async def weather_context_node(state: PulseGraphState) -> PulseGraphState:
         Updated state with weather context
     """
     client = OpenWeatherClient()
-    enriched = state.get("enriched_events", [])
+    enriched = [
+        {**enriched_event, "weather_context": None}
+        for enriched_event in state.get("enriched_events", [])
+    ]
     errors = list(state.get("errors", []))
     weather_added_count = 0
     started = time.perf_counter()
-
-    for enriched_event in enriched:
-        enriched_event["weather_context"] = None
 
     candidates = [
         (idx, enriched_event["event"])

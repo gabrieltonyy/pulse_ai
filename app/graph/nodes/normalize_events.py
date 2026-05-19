@@ -39,27 +39,30 @@ async def normalize_events_node(state: PulseGraphState) -> PulseGraphState:
                 "error": str(e)
             })
     
-    state["events_normalized"] = normalized
-    
-    # Add errors to state if any
-    if errors:
-        if "errors" not in state:
-            state["errors"] = []
-        state["errors"].extend([{"node": "normalize_events", **err} for err in errors])
-    
-    # Add to workflow trace
-    state["workflow_trace"] = [
-        *state.get("workflow_trace", []),
-        {
-            "node_name": "normalize_events",
-            "status": "completed",
-            "tool_called": None,
-            "normalized_count": len(normalized),
-            "error_count": len(errors)
-        }
-    ]
-    
-    return state
+    return {
+        **state,
+        "events_normalized": normalized,
+        **(
+            {
+                "errors": [
+                    *state.get("errors", []),
+                    *[{"node": "normalize_events", **err} for err in errors],
+                ]
+            }
+            if errors
+            else {}
+        ),
+        "workflow_trace": [
+            *state.get("workflow_trace", []),
+            {
+                "node_name": "normalize_events",
+                "status": "completed",
+                "tool_called": None,
+                "normalized_count": len(normalized),
+                "error_count": len(errors),
+            },
+        ],
+    }
 
 
 def _normalize_ticketmaster_event(raw_event: dict) -> Event:

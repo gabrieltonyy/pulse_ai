@@ -55,19 +55,20 @@ async def validate_query_node(state: PulseGraphState) -> PulseGraphState:
         message=f"Missing: {', '.join(missing_fields)}" if missing_fields else "Query is valid"
     )
     
-    state["validation"] = validation.model_dump()
-    
-    # Add to workflow trace
-    state["workflow_trace"] = [
-        *state.get("workflow_trace", []),
-        {
-            "node_name": "validate_query",
-            "status": "completed" if is_valid else "failed",
-            "tool_called": None,
-            "validation_result": validation.model_dump()
-        }
-    ]
-    
-    return state
+    validation_result = validation.model_dump()
+
+    return {
+        **state,
+        "validation": validation_result,
+        "workflow_trace": [
+            *state.get("workflow_trace", []),
+            {
+                "node_name": "validate_query",
+                "status": "completed" if is_valid else "failed",
+                "tool_called": None,
+                "validation_result": validation_result,
+            },
+        ],
+    }
 
 # Made with Bob

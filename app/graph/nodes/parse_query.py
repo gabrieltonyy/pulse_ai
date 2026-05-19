@@ -45,18 +45,6 @@ async def parse_query_node(state: PulseGraphState) -> PulseGraphState:
             extra={"parse_source": parse_source, "fallback_used": fallback_used},
         )
         
-        # Update state with parsed intent
-        state["parsed_intent"] = intent.model_dump()
-        state["city"] = state.get("city") or intent.city
-        state["country"] = state.get("country") or intent.country
-        state["category"] = state.get("category") or intent.category
-        state["keyword"] = state.get("keyword") or intent.keyword
-        state["date_from"] = state.get("date_from") or (intent.date_from.isoformat() if intent.date_from else None)
-        state["date_to"] = state.get("date_to") or (intent.date_to.isoformat() if intent.date_to else None)
-        state["budget_max"] = state.get("budget_max") if state.get("budget_max") is not None else intent.budget_max
-        state["currency"] = state.get("currency") or intent.currency
-        state["preferences"] = state.get("preferences") or intent.preferences
-        
     except Exception as e:
         # Fallback already handled in LLMService, but catch any unexpected errors
         error_message = str(e)
@@ -68,16 +56,19 @@ async def parse_query_node(state: PulseGraphState) -> PulseGraphState:
             "Query parsing failed unexpectedly; deterministic fallback used",
             extra={"parse_source": "deterministic", "fallback_used": True, "error_type": type(e).__name__},
         )
-        state["parsed_intent"] = intent.model_dump()
-        state["city"] = state.get("city") or intent.city
-        state["country"] = state.get("country") or intent.country
-        state["category"] = state.get("category") or intent.category
-        state["keyword"] = state.get("keyword") or intent.keyword
-        state["date_from"] = state.get("date_from") or (intent.date_from.isoformat() if intent.date_from else None)
-        state["date_to"] = state.get("date_to") or (intent.date_to.isoformat() if intent.date_to else None)
-        state["budget_max"] = state.get("budget_max") if state.get("budget_max") is not None else intent.budget_max
-        state["currency"] = state.get("currency") or intent.currency
-        state["preferences"] = state.get("preferences") or intent.preferences
+
+    updated_values = {
+        "parsed_intent": intent.model_dump(),
+        "city": state.get("city") or intent.city,
+        "country": state.get("country") or intent.country,
+        "category": state.get("category") or intent.category,
+        "keyword": state.get("keyword") or intent.keyword,
+        "date_from": state.get("date_from") or (intent.date_from.isoformat() if intent.date_from else None),
+        "date_to": state.get("date_to") or (intent.date_to.isoformat() if intent.date_to else None),
+        "budget_max": state.get("budget_max") if state.get("budget_max") is not None else intent.budget_max,
+        "currency": state.get("currency") or intent.currency,
+        "preferences": state.get("preferences") or intent.preferences,
+    }
     
     # Add to workflow trace
     trace_entry = {
@@ -91,11 +82,13 @@ async def parse_query_node(state: PulseGraphState) -> PulseGraphState:
     if error_message:
         trace_entry["error_message"] = error_message
     
-    state["workflow_trace"] = [
-        *state.get("workflow_trace", []),
-        trace_entry
-    ]
-    
-    return state
+    return {
+        **state,
+        **updated_values,
+        "workflow_trace": [
+            *state.get("workflow_trace", []),
+            trace_entry,
+        ],
+    }
 
 # Made with Bob

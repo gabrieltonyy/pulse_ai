@@ -28,8 +28,16 @@ async def generate_explanations_node(state: PulseGraphState) -> PulseGraphState:
     errors = list(state.get("errors", []))
     explanations_generated = 0
     started = time.perf_counter()
-    
-    for ranked_event in state.get("ranked_events", []):
+
+    ranked_events = [
+        {
+            **ranked_event,
+            "recommendation": dict(ranked_event["recommendation"]),
+        }
+        for ranked_event in state.get("ranked_events", [])
+    ]
+
+    for ranked_event in ranked_events:
         event_data = ranked_event["event"]
         score_data = ranked_event["recommendation"]
         
@@ -59,6 +67,7 @@ async def generate_explanations_node(state: PulseGraphState) -> PulseGraphState:
     
     return {
         **state,
+        "ranked_events": ranked_events,
         "errors": errors,
         "workflow_trace": [
             *state.get("workflow_trace", []),

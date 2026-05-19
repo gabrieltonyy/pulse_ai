@@ -31,6 +31,7 @@ async def search_events_node(state: PulseGraphState) -> PulseGraphState:
     fallback_used = False
     provider = "ticketmaster"
     error_message = None
+    errors = list(state.get("errors", []))
     started = time.perf_counter()
     
     # Check if demo mode or no API key
@@ -60,17 +61,11 @@ async def search_events_node(state: PulseGraphState) -> PulseGraphState:
                 extra={"provider": "ticketmaster", "fallback_provider": provider, "error_type": type(e).__name__},
             )
             events_raw = await _search_demo_events(state)
-            
-            # Add error to state
-            if "errors" not in state:
-                state["errors"] = []
-            state["errors"].append({
+
+            errors.append({
                 "node": "search_events",
                 "error": error_message
             })
-    
-    state["events_raw"] = events_raw
-    state["fallback_used"] = fallback_used
 
     logger.info(
         "Event search completed",
@@ -90,13 +85,17 @@ async def search_events_node(state: PulseGraphState) -> PulseGraphState:
     
     if error_message:
         trace_entry["error_message"] = error_message
-    
-    state["workflow_trace"] = [
-        *state.get("workflow_trace", []),
-        trace_entry
-    ]
-    
-    return state
+
+    return {
+        **state,
+        "events_raw": events_raw,
+        "fallback_used": fallback_used,
+        **({"errors": errors} if errors or "errors" in state else {}),
+        "workflow_trace": [
+            *state.get("workflow_trace", []),
+            trace_entry,
+        ],
+    }
 
 
 async def _search_ticketmaster_events(state: PulseGraphState) -> list[dict]:
