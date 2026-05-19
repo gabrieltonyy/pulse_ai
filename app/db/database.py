@@ -2,7 +2,8 @@
 Database configuration and session management for Pulse AI.
 Uses SQLAlchemy 2.x with asyncpg for async PostgreSQL operations.
 """
-from typing import AsyncGenerator
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator, AsyncIterator
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     AsyncEngine,
@@ -83,6 +84,26 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     
     Yields:
         AsyncSession: Database session
+    """
+    session_maker = get_session_maker()
+    async with session_maker() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
+@asynccontextmanager
+async def get_session_context() -> AsyncIterator[AsyncSession]:
+    """
+    Async session context manager for non-FastAPI code paths.
+
+    Graph nodes cannot use FastAPI dependency injection, so this provides the
+    same commit/rollback behavior as get_db() for direct async context usage.
     """
     session_maker = get_session_maker()
     async with session_maker() as session:

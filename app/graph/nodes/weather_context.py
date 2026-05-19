@@ -1,14 +1,23 @@
 """
 Weather Context Node - Adds weather context to events.
 """
-from app.graph.state import PulseGraphState
+import asyncio
+import hashlib
+import json
+import logging
+import time
+from datetime import datetime, timedelta, timezone
+from typing import Any, Optional, Literal
+
 from app.config.settings import settings
+from app.db.database import get_session_context
+from app.db.repositories import ApiCacheRepository
+from app.graph.state import PulseGraphState
 from app.integrations.openweather_client import OpenWeatherClient
 from app.models.weather import WeatherContext
-from datetime import datetime
-from typing import Optional, Literal
-import asyncio
-import time
+
+
+logger = logging.getLogger(__name__)
 
 
 async def weather_context_node(state: PulseGraphState) -> PulseGraphState:
@@ -34,6 +43,7 @@ async def weather_context_node(state: PulseGraphState) -> PulseGraphState:
     ]
     errors = list(state.get("errors", []))
     weather_added_count = 0
+    cache_hits = 0
     started = time.perf_counter()
 
     candidates = [
@@ -51,9 +61,11 @@ async def weather_context_node(state: PulseGraphState) -> PulseGraphState:
                 "event_id": event.get("id"),
                 "error": str(result),
             })
-        elif result:
-            enriched[idx]["weather_context"] = result
+        elif result and result["weather_context"]:
+            enriched[idx]["weather_context"] = result["weather_context"]
             weather_added_count += 1
+            if result["cache_hit"]:
+                cache_hits += 1
     
     return {
         **state,
@@ -67,6 +79,7 @@ async def weather_context_node(state: PulseGraphState) -> PulseGraphState:
                 "tool_called": "openweather",
                 "weather_added": weather_added_count,
                 "events_considered": len(candidates),
+                "cache_hits": cache_hits,
                 "latency_ms": round((time.perf_counter() - started) * 1000, 2),
             }
         ]
@@ -114,7 +127,7 @@ def _event_date_outside_forecast_horizon(event: dict) -> bool:
 async def _get_weather_context(
     client: OpenWeatherClient,
     event: dict
-) -> Optional[dict]:
+) -> dict[str, Any]:
     """
     Get weather context for an event.
     
@@ -135,15 +148,36 @@ async def _get_weather_context(
             event_datetime = datetime.fromisoformat(event_datetime.replace("Z", "+00:00"))
         event_date = event_datetime.date()
         
-        # Get weather data
-        weather_data = await client.get_weather(
-            lat=lat,
-            lon=lon,
-            event_date=event_date
-        )
+        cache_key, request_hash = _build_weather_cache_key(lat=lat, lon=lon, event_date=event_date)
+        weather_data = await _get_cached_weather(cache_key)
+        cache_hit = weather_data is not None
+
+        if cache_hit:
+            logger.info(
+                "OpenWeather cache hit",
+                extra={"provider": "openweather", "cache_hit": cache_hit},
+            )
+        else:
+            logger.info(
+                "OpenWeather cache miss",
+                extra={"provider": "openweather", "cache_hit": cache_hit},
+            )
+            # Get weather data
+            weather_data = await client.get_weather(
+                lat=lat,
+                lon=lon,
+                event_date=event_date
+            )
         
         if not weather_data:
-            return None
+            return {"weather_context": None, "cache_hit": cache_hit}
+
+        if not cache_hit:
+            await _cache_weather(
+                cache_key=cache_key,
+                request_hash=request_hash,
+                weather_data=weather_data,
+            )
         
         # Extract weather information
         main_data = weather_data.get("main", {})
@@ -177,10 +211,57 @@ async def _get_weather_context(
             weather_note=weather_note
         )
         
-        return weather_context.model_dump()
+        return {"weather_context": weather_context.model_dump(), "cache_hit": cache_hit}
         
-    except Exception as e:
+    except Exception:
+        return {"weather_context": None, "cache_hit": False}
+
+
+def _build_weather_cache_key(lat: float, lon: float, event_date) -> tuple[str, str]:
+    """Build a stable cache key from location and event date rounded to day."""
+    payload = {
+        "lat": lat,
+        "lon": lon,
+        "date": event_date.isoformat() if event_date else None,
+    }
+    request_hash = _hash_cache_payload(payload)
+    return f"openweather:weather:{request_hash}", request_hash
+
+
+def _hash_cache_payload(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
+
+
+async def _get_cached_weather(cache_key: str) -> dict[str, Any] | None:
+    try:
+        async with get_session_context() as session:
+            cache = await ApiCacheRepository(session).get_cache(cache_key)
+            if not cache:
+                return None
+            return json.loads(cache.response_json)
+    except Exception:
         return None
+
+
+async def _cache_weather(
+    cache_key: str,
+    request_hash: str,
+    weather_data: dict[str, Any],
+) -> None:
+    try:
+        async with get_session_context() as session:
+            await ApiCacheRepository(session).set_cache(
+                cache_key=cache_key,
+                tool_name="openweather",
+                provider="openweather",
+                request_hash=request_hash,
+                response_json=json.dumps(weather_data, default=str),
+                expires_at=datetime.now(timezone.utc) + timedelta(seconds=settings.cache_ttl_weather),
+            )
+    except Exception:
+        pass
 
 
 def _calculate_rain_probability(weather_data: dict) -> Optional[float]:

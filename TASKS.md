@@ -330,15 +330,62 @@
 
 ---
 
-## In Progress
-None currently - Phase 7 complete! (7/8 phases done)
+## Completed - Post-Phase 7 Stabilization & Hardening ✅
+- [x] **Stage 1: Critical Bug Fixes & Security Hardening**
+  - [x] Required `SECRET_KEY` and rejected insecure placeholder value
+  - [x] Replaced unsafe exception details in API/HTMX responses
+  - [x] Added HTMX query length validation
+  - [x] Added `event_id` path validation
+  - [x] Removed no-session `EventRepository` fallback
+  - [x] Replaced deprecated UTC timestamp usage in touched paths
+  - [x] Switched click counting to SQL `COUNT(*)`
+  - [x] Removed duplicate `httpx` dependency entry
+  - [x] Fixed `.env.example` dotenv syntax
+
+- [x] **Stage 2: FastAPI App Wiring & Middleware**
+  - [x] Replaced deprecated startup/shutdown events with lifespan function
+  - [x] Added CORS middleware from `settings.cors_origins`
+  - [x] Disabled docs/redoc when not in debug mode
+  - [x] Compiled LangGraph once at startup and stored it on `app.state.workflow`
+  - [x] Updated search routes to reuse app-state workflow
+  - [x] Added `reset_workflow()` for tests
+
+- [x] **Stage 3: Dependency Injection & Repository Cleanup**
+  - [x] Event routes use `db: AsyncSession = Depends(get_db)`
+  - [x] `EventRepository` consistently requires and uses injected session
+  - [x] Cleaned `get_engine()` pool args for dev/test `NullPool`
+
+- [x] **Stage 4: Logging Standardization**
+  - [x] Added module loggers to LLM service, API clients, and selected graph nodes
+  - [x] Replaced remaining `print()` usage
+  - [x] Added API call start/success/rate-limit/failure logs
+  - [x] Kept LLM fallback log redacted
+
+- [x] **Stage 5: LangGraph State Mutation Consistency**
+  - [x] Audited all 9 graph nodes
+  - [x] Standardized mutation-heavy nodes to return fresh state dicts
+  - [x] Ensured `workflow_trace` is extended from existing trace
+  - [x] Avoided nested input-state mutation for weather context and explanations
+
+- [x] **Stage 6: API Response Caching Integration**
+  - [x] Added `get_session_context()` for graph-node DB sessions
+  - [x] Wired Ticketmaster event search caching through `ApiCacheRepository`
+  - [x] Wired OpenWeather response caching through `ApiCacheRepository`
+  - [x] Made cache failures non-blocking
+  - [x] Added cache-hit data to workflow traces
 
 ---
 
-## Next Priority (Phase 8)
-- [ ] Future Enhancements Planning
-- [ ] Deployment Optimization
-- [ ] Advanced Features Documentation
+## In Progress
+None currently - stabilization stages 1-6 have been applied locally.
+
+---
+
+## Next Priority
+- [ ] Run full regression suite in a fully provisioned environment
+- [ ] Add/adjust tests for cache-hit and cache-miss paths
+- [ ] Review and commit Stage 2-6 plus documentation updates
+- [ ] Continue Phase 8 planning after stabilization verification
 
 ---
 
@@ -366,12 +413,12 @@ None currently.
 - All API keys configured in .env
 - watsonx.ai configured as LLM provider
 - Demo mode available for testing without API calls
-- **Phase Progress: 5/8 phases complete** ✅
+- **Phase Progress: 7/8 phases complete, plus post-Phase 7 stabilization stages 1-6 applied** ✅
 - Phase 1: Foundation ✅
 - Phase 2: Core Data Models & Demo Provider ✅
 - Phase 3: Query Understanding & Validation ✅
 - Phase 4: Event Search & Normalization ✅
 - Phase 5: MCP Tools & Web Interface ✅
-- Phase 6: Testing & Integration (Next)
-- Phase 7: Documentation & Polish (Pending)
+- Phase 6: Testing & Integration ✅
+- Phase 7: Documentation & Polish ✅
 - Phase 8: Future Enhancements (Pending)

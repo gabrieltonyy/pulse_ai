@@ -1,8 +1,8 @@
 # Pulse AI — Session Hand Over
 
-**Last Updated:** 2026-05-16 21:19 UTC
-**Phase:** Phase 7 - Documentation & Polish Complete
-**Status:** ✅ Phase 7 COMPLETE - Ready for Phase 8 (Future Enhancements)
+**Last Updated:** 2026-05-19
+**Phase:** Post-Phase 7 Stabilization & Security Hardening
+**Status:** ✅ Phase 7 COMPLETE + Stage 1-6 hardening/caching work applied locally
 
 ---
 
@@ -15,7 +15,7 @@
 - **Alembic migrations working with async driver** ✅
 - **Database migrations successfully applied** ✅
 - FastAPI application with health endpoint
-- LangGraph workflow scaffold with 9 node placeholders
+- LangGraph workflow with 9 implemented nodes
 - All environment variables configured in .env
 - Docker setup (Dockerfile + docker-compose.yml, version attribute removed)
 - All operational files created
@@ -50,29 +50,49 @@
 - **MCP usage documentation (Phase 7)** ✅
 - **Bob session proof guide (Phase 7)** ✅
 - **Operational docs updated (Phase 7)** ✅
+- **P0 security hardening completed** ✅
+  - Required `SECRET_KEY`, rejected insecure placeholder value
+  - Safe generic API/HTMX error messages
+  - Query length validation for HTMX search
+  - Event ID path validation
+- **FastAPI app wiring modernized** ✅
+  - Lifespan startup/shutdown replaces deprecated `@app.on_event`
+  - Workflow compiled once at startup and stored on `app.state.workflow`
+  - CORS configured from settings
+  - Docs/redoc disabled outside debug mode
+- **Repository/session patterns cleaned up** ✅
+  - `EventRepository` requires an injected `AsyncSession`
+  - Graph nodes can use `get_session_context()` for direct DB access
+  - Dev/test `NullPool` no longer receives ignored production pool arguments
+- **Logging standardized for LLM/API/node paths** ✅
+- **LangGraph state updates standardized** ✅
+  - Nodes return fresh updated state dicts and extend `workflow_trace`
+- **API response caching wired into pipeline** ✅
+  - Ticketmaster event search cache via `ApiCacheRepository`
+  - OpenWeather response cache via `ApiCacheRepository`
 
 ### ⏳ Pending
 - Future enhancements (Phase 8)
 - Advanced features (Phase 8)
 - Production optimization (Phase 8)
+- Re-run full test suite after installing all Python dependencies in the target environment
+- Commit and push current Stage 2-6/doc changes when ready
 
 ### ❌ Not Working
-- None (Phase 6 complete, all tests passing)
+- Runtime import/testing in this environment may fail until dependencies such as `pydantic-settings` are installed.
 
 ---
 
 ## Current Priority
 
-**Phase 7 Complete!** ✅
+**Post-Phase 7 stabilization is current priority.** ✅
 
-**Project Status: 87.5% Complete (7/8 phases)**
+**Project Status: Phase 7 complete; Stage 1-6 hardening/caching updates applied locally**
 
-Next: Phase 8 - Future Enhancements (Optional)
-- Advanced features planning
-- Production optimization
-- Deployment enhancements
-- Performance tuning
-- Additional integrations
+Next recommended actions:
+- Run the full test suite in a fully provisioned environment
+- Review and commit Stage 2-6 plus documentation changes
+- Continue to Phase 8 only after stabilization changes are verified
 
 ---
 
@@ -87,7 +107,7 @@ Next: Phase 8 - Future Enhancements (Optional)
 - **MCP:** FastMCP
 - **LLM:** watsonx.ai (IBM Granite)
 - **Templates:** Jinja2
-- **Frontend:** HTMX (planned)
+- **Frontend:** HTMX
 
 ### Current Graph Flow
 ```
@@ -105,10 +125,10 @@ parse_query
 **All Nodes Implemented (Phases 3 & 4):**
 - ✅ parse_query - Uses watsonx.ai LLM with deterministic fallback
 - ✅ validate_query - Validates search intent
-- ✅ search_events - Ticketmaster API with demo fallback
+- ✅ search_events - Ticketmaster API with cache + demo fallback
 - ✅ normalize_events - Converts API responses to Event model
 - ✅ enrich_venues - Geoapify integration for nearby places
-- ✅ weather_context - OpenWeather integration for forecasts
+- ✅ weather_context - OpenWeather integration for forecasts with cache
 - ✅ rank_events - Deterministic scoring algorithm
 - ✅ generate_explanations - LLM-powered explanations with fallback
 - ✅ prepare_response - Final response formatting with summary
@@ -134,9 +154,9 @@ parse_query
 - ✅ watsonx.ai
 
 ### Implementation Status
-- ✅ **Ticketmaster:** Fully integrated with TicketmasterClient
-- ✅ **Geoapify:** Client created, ready for venue enrichment
-- ✅ **OpenWeather:** Client created, ready for weather context
+- ✅ **Ticketmaster:** Fully integrated with TicketmasterClient and DB-backed response cache in graph node
+- ✅ **Geoapify:** Client integrated for venue enrichment
+- ✅ **OpenWeather:** Client integrated for weather context with DB-backed response cache in graph node
 - ✅ **watsonx.ai:** LLM service with parse_query and generate_explanation
 - ✅ **Demo mode:** Fully functional fallback system
 
@@ -152,11 +172,11 @@ parse_query
 ### LangGraph
 - `app/graph/state.py` - PulseGraphState TypedDict
 - `app/graph/workflow.py` - Workflow graph definition
-- `app/graph/nodes/*.py` - 9 node placeholder files
+- `app/graph/nodes/*.py` - 9 implemented workflow nodes
 
 ### MCP
 - `app/mcp/server.py` - FastMCP server
-- `app/mcp/tools/*.py` - 7 tool stub files
+- `app/mcp/tools/*.py` - MCP tool modules
 
 ### Database
 - `app/models/*.py` - SQLAlchemy models (4 tables)
@@ -191,6 +211,53 @@ DATABASE_URL=postgresql+asyncpg://pulse_user:pulse_password@localhost:5432/pulse
 ---
 
 ## Last Completed Work
+
+**Post-Phase 7 Stabilization & Hardening (Stages 1-6)** ✅ COMPLETE/APPLIED LOCALLY
+
+### Stage 1: Critical Bug Fixes & Security Hardening
+- Replaced unsafe API/HTMX exception exposure with generic user-facing errors.
+- Added HTMX query length guard at 300 characters.
+- Made `SECRET_KEY` required and rejected the known insecure placeholder.
+- Added event ID regex path validation.
+- Removed `EventRepository` no-session fallback and moved route usage to injected sessions.
+- Replaced deprecated `datetime.utcnow()` usage in touched paths with timezone-aware UTC.
+- Changed outbound click counting to SQL `COUNT(*)`.
+- Cleaned duplicate `httpx` dependency and fixed `.env.example` dotenv syntax.
+
+### Stage 2: FastAPI App Wiring & Middleware
+- Replaced deprecated startup/shutdown event decorators with a FastAPI lifespan context.
+- Compiles LangGraph once at startup through `get_workflow()` and stores it on `app.state.workflow`.
+- Search routes now use the app-state workflow instead of compiling per request.
+- Added CORS middleware from `settings.cors_origins`.
+- Disabled `/docs` and `/redoc` when `settings.debug` is false.
+- Added `reset_workflow()` for tests.
+
+### Stage 3: Dependency Injection & Repository Cleanup
+- Confirmed `EventRepository` requires `AsyncSession` and consistently uses `self.session`.
+- Event routes instantiate `EventRepository(session=db)` from `Depends(get_db)`.
+- Refactored `get_engine()` so `NullPool` is used only for dev/test without ignored pool sizing args.
+
+### Stage 4: Logging Standardization
+- Added module loggers to LLM service, API clients, and key graph nodes.
+- Replaced remaining `print()` usage.
+- Added API call start/success/rate-limit/failure logs for Ticketmaster, Geoapify, and OpenWeather.
+- Kept LLM fallback logs redacted so user input or exception text is not echoed.
+
+### Stage 5: LangGraph State Mutation Consistency
+- Audited all 9 graph nodes.
+- Converted mutation-heavy nodes to return fresh `{**state, ...}` dictionaries.
+- Ensured `workflow_trace` is extended in every node.
+- Copied nested event/recommendation dictionaries before adding weather context or explanations.
+
+### Stage 6: API Response Caching Integration
+- Added `get_session_context()` for graph-node DB access outside FastAPI DI.
+- Wired Ticketmaster event search caching through `ApiCacheRepository`.
+  - Cache key: `ticketmaster:events:{sha256(sorted JSON of city, country, category, keyword, date_from, date_to)}`
+  - TTL: `settings.cache_ttl_events`
+- Wired OpenWeather response caching through `ApiCacheRepository`.
+  - Cache key: `openweather:weather:{sha256(sorted JSON of lat, lon, date)}`
+  - TTL: `settings.cache_ttl_weather`
+- Cache failures are non-blocking; weather cache failures are silently skipped.
 
 **Phase 3: Query Understanding & Validation with Full API Integration** ✅ COMPLETE
 
@@ -611,11 +678,12 @@ See KNOWN_ISSUES.md for full details.
 
 ## Testing Status
 
-- ✅ API connection tests created and passing (tests/test_api_connections.py)
-- ✅ All 4 external APIs tested and working
-- ⏳ Unit tests for nodes pending (Phase 5)
-- ⏳ Integration tests pending (Phase 5)
-- ⏳ Application boot not verified yet
+- ✅ API connection tests previously created and passing (tests/test_api_connections.py)
+- ✅ Stage 1-6 touched Python files passed `python -m py_compile`
+- ✅ Stage 5 state-mutation scan confirmed no direct `state[...] =`, `.append`, or `.extend` mutations remain in the 9 node files
+- ✅ Stage 6 `git diff --check` passed for caching changes
+- ⏳ Full test suite should be rerun in a fully provisioned environment before release
+- ⚠️ Local runtime import checks may require installing missing dependencies such as `pydantic-settings`
 
 ---
 

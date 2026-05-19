@@ -26,11 +26,82 @@
 
 **Date Identified:** 2026-05-16
 
+### 2. Full Regression Suite Not Re-run After Hardening Changes ⚠️ ACTION NEEDED
+**Issue:** Stages 1-6 changed security, FastAPI wiring, repository/session handling, logging, LangGraph state returns, and API caching. Targeted syntax checks passed, but the full test suite has not been re-run in this chat.
+
+**Status:** Pending verification
+- `python -m py_compile` passed for touched Python files during each stage
+- Stage 5 state-mutation scan passed for all 9 graph nodes
+- Stage 6 `git diff --check` passed for caching changes
+- Runtime imports may require installing missing dependencies in the active environment
+
+**Recommendation:**
+- Run `./run_tests.sh` or `pytest tests/ -v` in a fully provisioned environment before release
+- Include cache-hit/cache-miss coverage for Ticketmaster and OpenWeather paths when adding tests
+
+**Date Identified:** 2026-05-19
+
 ---
 
 ## Resolved Issues
 
-### 1. Alembic Async Driver Configuration ✅ FIXED
+### P0 Security and Error Leakage Risks ✅ FIXED
+**Issue:** Several API paths exposed implementation details or accepted overly broad input.
+
+**Fix:**
+- Replaced unsafe `str(exc)` response details with generic user-facing messages
+- Prevented HTMX error HTML from reflecting exception text
+- Added HTMX query length validation
+- Required `SECRET_KEY` and rejected the insecure placeholder value
+- Added regex validation for `event_id` path parameters
+- Removed markdown fences from `.env.example`
+
+**Date Fixed:** 2026-05-19
+
+### Deprecated FastAPI Startup/Shutdown Wiring ✅ FIXED
+**Issue:** The app used deprecated `@app.on_event("startup")` and `@app.on_event("shutdown")` hooks, and the LangGraph workflow was compiled per request.
+
+**Fix:**
+- Added FastAPI lifespan context manager
+- Compiled workflow once at startup with `get_workflow()`
+- Stored compiled workflow on `app.state.workflow`
+- Updated search routes to use `request.app.state.workflow`
+- Added `reset_workflow()` for tests
+
+**Date Fixed:** 2026-05-19
+
+### EventRepository Optional Session Pattern ✅ FIXED
+**Issue:** `EventRepository` previously supported no-session construction and fallback session lookup, which was fragile and caused runtime risk.
+
+**Fix:**
+- `EventRepository` now requires `AsyncSession`
+- Event routes use `Depends(get_db)` and instantiate `EventRepository(session=db)`
+- Graph nodes use the new `get_session_context()` context manager when direct DB access is needed
+
+**Date Fixed:** 2026-05-19
+
+### Inconsistent LangGraph State Mutation ✅ FIXED
+**Issue:** Some graph nodes mutated the incoming state object while others returned a fresh state dict.
+
+**Fix:**
+- Audited all 9 graph nodes
+- Standardized mutation-heavy nodes to return `{**state, ...}`
+- Ensured `workflow_trace` is always extended from existing trace
+- Copied nested event/recommendation dictionaries before adding weather context or explanations
+
+**Date Fixed:** 2026-05-19
+
+### API Cache Table Was Unused in Main Pipeline ✅ FIXED
+**Issue:** `ApiCacheRepository`, TTL settings, and `api_cache` table existed but were not wired into the workflow.
+
+**Fix:**
+- Ticketmaster search results now cache by hashed search parameter payload
+- OpenWeather raw responses now cache by hashed latitude/longitude/date payload
+- Cache failures are non-blocking
+
+**Date Fixed:** 2026-05-19
+
+### Alembic Async Driver Configuration ✅ FIXED
 **Issue:** Alembic was trying to use psycopg2 (sync driver) with async engine, causing error:
 ```
 The asyncio extension requires an async driver to be used. The loaded 'psycopg2' is not async.
@@ -46,7 +117,7 @@ The asyncio extension requires an async driver to be used. The loaded 'psycopg2'
 
 **Date Fixed:** 2026-05-16
 
-### 2. Database Credentials Mismatch ✅ FIXED
+### Database Credentials Mismatch ✅ FIXED
 **Issue:** Alembic migrations failing with password authentication error for user "postgres"
 
 **Root Cause:**
@@ -60,7 +131,7 @@ The asyncio extension requires an async driver to be used. The loaded 'psycopg2'
 
 **Date Fixed:** 2026-05-16
 
-### 3. Docker Compose Version Attribute ✅ FIXED
+### Docker Compose Version Attribute ✅ FIXED
 **Issue:** Docker Compose showing deprecation warning for `version` attribute
 
 **Fix:**
@@ -105,7 +176,8 @@ The asyncio extension requires an async driver to be used. The loaded 'psycopg2'
 - Geoapify: Depends on plan
 - OpenWeather: 1000 requests/day (free tier)
 - Proper rate limiting implemented with retry logic
-- Caching strategy in place via ApiCacheRepository
+- DB-backed caching now active in the main graph for Ticketmaster event searches and OpenWeather responses
+- Geoapify client still relies on retry/rate-limit handling; no graph-node cache is currently wired for venue enrichment
 
 ### Performance
 - Multiple external API calls per search (optimized with async)
