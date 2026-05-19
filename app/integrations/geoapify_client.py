@@ -3,11 +3,16 @@ Geoapify API Client for Pulse AI
 Handles location and places search.
 """
 
+import logging
+
 import httpx
 from typing import Optional, List, Dict, Any
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
 from app.config.settings import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class GeoapifyClient:
@@ -58,26 +63,69 @@ class GeoapifyClient:
         
         if categories:
             params["categories"] = categories
-        
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(
-                f"{self.base_url}/places",
-                params=params
-            )
-            
-            # Handle rate limiting
-            if response.status_code == 429:
-                raise httpx.HTTPStatusError(
-                    "Rate limit exceeded",
-                    request=response.request,
-                    response=response
+
+        logger.debug(
+            "Geoapify nearby places lookup started",
+            extra={
+                "provider": "geoapify",
+                "radius": radius,
+                "categories_present": bool(categories),
+                "limit": limit,
+            },
+        )
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(
+                    f"{self.base_url}/places",
+                    params=params
                 )
-            
-            response.raise_for_status()
-            data = response.json()
-            
-            # Extract features (places) from response
-            return data.get("features", [])
+
+                # Handle rate limiting
+                if response.status_code == 429:
+                    logger.warning(
+                        "Geoapify rate limit hit",
+                        extra={"provider": "geoapify", "status_code": response.status_code},
+                    )
+                    raise httpx.HTTPStatusError(
+                        "Rate limit exceeded",
+                        request=response.request,
+                        response=response
+                    )
+
+                response.raise_for_status()
+                data = response.json()
+
+                # Extract features (places) from response
+                places = data.get("features", [])
+                logger.info(
+                    "Geoapify nearby places lookup succeeded",
+                    extra={"provider": "geoapify", "place_count": len(places)},
+                )
+                return places
+        except httpx.HTTPStatusError as exc:
+            if exc.response is None or exc.response.status_code != 429:
+                logger.error(
+                    "Geoapify nearby places lookup failed",
+                    extra={
+                        "provider": "geoapify",
+                        "status_code": exc.response.status_code if exc.response else None,
+                        "error_type": type(exc).__name__,
+                    },
+                )
+            raise
+        except httpx.HTTPError as exc:
+            logger.error(
+                "Geoapify nearby places lookup failed",
+                extra={"provider": "geoapify", "error_type": type(exc).__name__},
+            )
+            raise
+        except Exception as exc:
+            logger.error(
+                "Geoapify nearby places lookup failed",
+                extra={"provider": "geoapify", "error_type": type(exc).__name__},
+            )
+            raise
     
     @retry(
         stop=stop_after_attempt(2),
@@ -113,26 +161,63 @@ class GeoapifyClient:
             "limit": 1,
             "type": "city"
         }
-        
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(geocode_url, params=params)
-            
-            if response.status_code == 429:
-                raise httpx.HTTPStatusError(
-                    "Rate limit exceeded",
-                    request=response.request,
-                    response=response
+
+        logger.debug(
+            "Geoapify city geocode started",
+            extra={"provider": "geoapify", "country_present": bool(country)},
+        )
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(geocode_url, params=params)
+
+                if response.status_code == 429:
+                    logger.warning(
+                        "Geoapify rate limit hit",
+                        extra={"provider": "geoapify", "status_code": response.status_code},
+                    )
+                    raise httpx.HTTPStatusError(
+                        "Rate limit exceeded",
+                        request=response.request,
+                        response=response
+                    )
+
+                response.raise_for_status()
+                data = response.json()
+
+                # Extract first result
+                features = data.get("features", [])
+                logger.info(
+                    "Geoapify city geocode succeeded",
+                    extra={"provider": "geoapify", "result_count": len(features)},
                 )
-            
-            response.raise_for_status()
-            data = response.json()
-            
-            # Extract first result
-            features = data.get("features", [])
-            if features:
-                return features[0]
-            
-            return None
+                if features:
+                    return features[0]
+
+                return None
+        except httpx.HTTPStatusError as exc:
+            if exc.response is None or exc.response.status_code != 429:
+                logger.error(
+                    "Geoapify city geocode failed",
+                    extra={
+                        "provider": "geoapify",
+                        "status_code": exc.response.status_code if exc.response else None,
+                        "error_type": type(exc).__name__,
+                    },
+                )
+            raise
+        except httpx.HTTPError as exc:
+            logger.error(
+                "Geoapify city geocode failed",
+                extra={"provider": "geoapify", "error_type": type(exc).__name__},
+            )
+            raise
+        except Exception as exc:
+            logger.error(
+                "Geoapify city geocode failed",
+                extra={"provider": "geoapify", "error_type": type(exc).__name__},
+            )
+            raise
     
     def get_place_categories(self, place_type: str) -> str:
         """

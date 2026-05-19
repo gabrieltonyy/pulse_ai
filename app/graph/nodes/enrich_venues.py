@@ -1,6 +1,8 @@
 """
 Enrich Venues Node - Enriches events with venue context data.
 """
+import logging
+
 from app.graph.state import PulseGraphState
 from app.config.settings import settings
 from app.integrations.geoapify_client import GeoapifyClient
@@ -8,6 +10,9 @@ from app.models.venue import VenueContext, NearbyPlace
 from typing import Optional
 import asyncio
 import time
+
+
+logger = logging.getLogger(__name__)
 
 
 async def enrich_venues_node(state: PulseGraphState) -> PulseGraphState:
@@ -44,6 +49,15 @@ async def enrich_venues_node(state: PulseGraphState) -> PulseGraphState:
         )
     ]
 
+    logger.info(
+        "Venue enrichment started",
+        extra={
+            "event_count": len(events),
+            "events_considered": len(candidates),
+            "events_skipped": len(events) - len(candidates),
+        },
+    )
+
     tasks = [_get_venue_context(client=client, event=event_data) for _, event_data in candidates]
     results = await asyncio.gather(*tasks, return_exceptions=True) if tasks else []
 
@@ -56,6 +70,18 @@ async def enrich_venues_node(state: PulseGraphState) -> PulseGraphState:
             })
         else:
             enriched[idx]["venue_context"] = result
+
+    enriched_count = len([event for event in enriched if event.get("venue_context")])
+    skipped_count = len(events) - enriched_count
+
+    logger.info(
+        "Venue enrichment completed",
+        extra={
+            "events_enriched": enriched_count,
+            "events_skipped": skipped_count,
+            "events_considered": len(candidates),
+        },
+    )
     
     return {
         **state,
@@ -67,7 +93,7 @@ async def enrich_venues_node(state: PulseGraphState) -> PulseGraphState:
                 "node_name": "enrich_venues",
                 "status": "completed",
                 "tool_called": "geoapify",
-                "events_enriched": len([e for e in enriched if e.get("venue_context")]),
+                "events_enriched": enriched_count,
                 "events_considered": len(candidates),
                 "latency_ms": round((time.perf_counter() - started) * 1000, 2),
             }

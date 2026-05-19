@@ -3,12 +3,17 @@ Ticketmaster API Client for Pulse AI
 Handles event search with retry logic and rate limiting.
 """
 
+import logging
+
 import httpx
 from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
 from app.config.settings import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 class TicketmasterClient:
@@ -83,29 +88,75 @@ class TicketmasterClient:
         
         if date_to:
             params["endDateTime"] = self._to_end_utc(date_to)
-        
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            response = await client.get(
-                f"{self.base_url}/events.json",
-                params=params
-            )
-            
-            # Handle rate limiting
-            if response.status_code == 429:
-                raise httpx.HTTPStatusError(
-                    "Rate limit exceeded",
-                    request=response.request,
-                    response=response
+
+        logger.debug(
+            "Ticketmaster event search started",
+            extra={
+                "provider": "ticketmaster",
+                "city_present": bool(city),
+                "country_present": bool(country),
+                "category": category,
+                "keyword_present": bool(keyword),
+                "size": params["size"],
+            },
+        )
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(
+                    f"{self.base_url}/events.json",
+                    params=params
                 )
-            
-            response.raise_for_status()
-            data = response.json()
-            
-            # Extract events from response
-            if "_embedded" in data and "events" in data["_embedded"]:
-                return data["_embedded"]["events"]
-            
-            return []
+
+                # Handle rate limiting
+                if response.status_code == 429:
+                    logger.warning(
+                        "Ticketmaster rate limit hit",
+                        extra={"provider": "ticketmaster", "status_code": response.status_code},
+                    )
+                    raise httpx.HTTPStatusError(
+                        "Rate limit exceeded",
+                        request=response.request,
+                        response=response
+                    )
+
+                response.raise_for_status()
+                data = response.json()
+
+                # Extract events from response
+                if "_embedded" in data and "events" in data["_embedded"]:
+                    events = data["_embedded"]["events"]
+                else:
+                    events = []
+
+                logger.info(
+                    "Ticketmaster event search succeeded",
+                    extra={"provider": "ticketmaster", "event_count": len(events)},
+                )
+                return events
+        except httpx.HTTPStatusError as exc:
+            if exc.response is None or exc.response.status_code != 429:
+                logger.error(
+                    "Ticketmaster event search failed",
+                    extra={
+                        "provider": "ticketmaster",
+                        "status_code": exc.response.status_code if exc.response else None,
+                        "error_type": type(exc).__name__,
+                    },
+                )
+            raise
+        except httpx.HTTPError as exc:
+            logger.error(
+                "Ticketmaster event search failed",
+                extra={"provider": "ticketmaster", "error_type": type(exc).__name__},
+            )
+            raise
+        except Exception as exc:
+            logger.error(
+                "Ticketmaster event search failed",
+                extra={"provider": "ticketmaster", "error_type": type(exc).__name__},
+            )
+            raise
     
     async def get_event_by_id(self, event_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -118,18 +169,65 @@ class TicketmasterClient:
             Event dictionary or None if not found
         """
         params = {"apikey": self.api_key}
-        
+
+        logger.debug(
+            "Ticketmaster event detail lookup started",
+            extra={"provider": "ticketmaster", "event_id_present": bool(event_id)},
+        )
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
                 response = await client.get(
                     f"{self.base_url}/events/{event_id}.json",
                     params=params
                 )
+
+                if response.status_code == 429:
+                    logger.warning(
+                        "Ticketmaster rate limit hit",
+                        extra={"provider": "ticketmaster", "status_code": response.status_code},
+                    )
+                    raise httpx.HTTPStatusError(
+                        "Rate limit exceeded",
+                        request=response.request,
+                        response=response
+                    )
+
                 response.raise_for_status()
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 404:
+                event = response.json()
+                logger.info(
+                    "Ticketmaster event detail lookup succeeded",
+                    extra={"provider": "ticketmaster", "event_found": True},
+                )
+                return event
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 404:
+                    logger.info(
+                        "Ticketmaster event detail lookup returned no result",
+                        extra={"provider": "ticketmaster", "event_found": False},
+                    )
                     return None
+                if exc.response.status_code != 429:
+                    logger.error(
+                        "Ticketmaster event detail lookup failed",
+                        extra={
+                            "provider": "ticketmaster",
+                            "status_code": exc.response.status_code,
+                            "error_type": type(exc).__name__,
+                        },
+                    )
+                raise
+            except httpx.HTTPError as exc:
+                logger.error(
+                    "Ticketmaster event detail lookup failed",
+                    extra={"provider": "ticketmaster", "error_type": type(exc).__name__},
+                )
+                raise
+            except Exception as exc:
+                logger.error(
+                    "Ticketmaster event detail lookup failed",
+                    extra={"provider": "ticketmaster", "error_type": type(exc).__name__},
+                )
                 raise
     
     def _map_category(self, category: str) -> Optional[str]:

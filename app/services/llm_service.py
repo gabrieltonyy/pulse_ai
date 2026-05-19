@@ -4,6 +4,7 @@ Handles query parsing and explanation generation with fallback mechanisms.
 """
 
 import json
+import logging
 import re
 import time
 from datetime import datetime, timedelta, date
@@ -18,6 +19,8 @@ from app.models.event import Event
 from app.models.recommendation import RecommendationScore
 
 
+logger = logging.getLogger(__name__)
+
 _INTENT_CACHE: dict[str, tuple[float, SearchIntent]] = {}
 _CHAT_MODEL_CACHE: tuple[float, list[str]] | None = None
 _IAM_TOKEN_CACHE: tuple[float, str] | None = None
@@ -30,6 +33,7 @@ class LLMService:
     def __init__(self):
         """Initialize watsonx.ai LLM with credentials from settings."""
         self.llm = None
+        self.last_parse_source = "unknown"
         self._initialize_llm()
     
     def _initialize_llm(self):
@@ -52,17 +56,23 @@ class LLMService:
         cache_key = self._normalise_query_key(query)
         cached = _INTENT_CACHE.get(cache_key)
         if cached and time.time() - cached[0] < settings.intent_cache_ttl_seconds:
+            self.last_parse_source = "cache"
             return cached[1]
 
         if not settings.demo_mode:
             try:
                 intent = await self._chat_parse_query(query)
+                self.last_parse_source = "llm"
                 _INTENT_CACHE[cache_key] = (time.time(), intent)
                 return intent
-            except Exception as e:
-                print(f"LLM parsing failed: <redacted>, falling back to deterministic parser")
+            except Exception as exc:
+                logger.warning(
+                    "LLM intent parsing failed; falling back to deterministic parser",
+                    extra={"error_type": type(exc).__name__},
+                )
         
         # Fallback to deterministic parser
+        self.last_parse_source = "deterministic"
         intent = self._deterministic_fallback(query)
         _INTENT_CACHE[cache_key] = (time.time(), intent)
         return intent

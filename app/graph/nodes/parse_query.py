@@ -1,10 +1,15 @@
 """
 Parse Query Node - Extracts structured intent from user query using watsonx.ai LLM.
 """
+import logging
+import time
+
 from app.graph.state import PulseGraphState
 from app.config.settings import settings
 from app.services.llm_service import LLMService
-import time
+
+
+logger = logging.getLogger(__name__)
 
 
 async def parse_query_node(state: PulseGraphState) -> PulseGraphState:
@@ -33,6 +38,12 @@ async def parse_query_node(state: PulseGraphState) -> PulseGraphState:
     try:
         # Use LLM to parse query
         intent = await llm_service.parse_query(state["raw_query"])
+        parse_source = getattr(llm_service, "last_parse_source", "unknown")
+        fallback_used = parse_source == "deterministic" or settings.demo_mode
+        logger.info(
+            "Query parsing completed",
+            extra={"parse_source": parse_source, "fallback_used": fallback_used},
+        )
         
         # Update state with parsed intent
         state["parsed_intent"] = intent.model_dump()
@@ -53,6 +64,10 @@ async def parse_query_node(state: PulseGraphState) -> PulseGraphState:
         
         # Use deterministic fallback
         intent = llm_service._deterministic_fallback(state["raw_query"])
+        logger.warning(
+            "Query parsing failed unexpectedly; deterministic fallback used",
+            extra={"parse_source": "deterministic", "fallback_used": True, "error_type": type(e).__name__},
+        )
         state["parsed_intent"] = intent.model_dump()
         state["city"] = state.get("city") or intent.city
         state["country"] = state.get("country") or intent.country

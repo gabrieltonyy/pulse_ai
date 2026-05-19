@@ -2,11 +2,15 @@
 Search Events Node - Searches for events using Ticketmaster API or demo data.
 """
 from datetime import datetime
+import logging
 import time
 from app.graph.state import PulseGraphState
 from app.integrations.ticketmaster_client import TicketmasterClient
 from app.services.demo_provider import DemoProvider
 from app.config.settings import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 async def search_events_node(state: PulseGraphState) -> PulseGraphState:
@@ -33,16 +37,28 @@ async def search_events_node(state: PulseGraphState) -> PulseGraphState:
     if state.get("demo_mode") or state.get("use_demo_data") or settings.demo_mode or not settings.ticketmaster_api_key:
         fallback_used = True
         provider = "demo"
+        logger.info(
+            "Event search using provider",
+            extra={"provider": provider, "fallback_used": fallback_used},
+        )
         events_raw = await _search_demo_events(state)
     else:
         # Try Ticketmaster API
         try:
+            logger.info(
+                "Event search using provider",
+                extra={"provider": provider, "fallback_used": fallback_used},
+            )
             events_raw = await _search_ticketmaster_events(state)
         except Exception as e:
             # Fallback to demo on error
             error_message = str(e)
             fallback_used = True
             provider = "demo"
+            logger.warning(
+                "Event search provider failed; falling back to demo provider",
+                extra={"provider": "ticketmaster", "fallback_provider": provider, "error_type": type(e).__name__},
+            )
             events_raw = await _search_demo_events(state)
             
             # Add error to state
@@ -55,6 +71,11 @@ async def search_events_node(state: PulseGraphState) -> PulseGraphState:
     
     state["events_raw"] = events_raw
     state["fallback_used"] = fallback_used
+
+    logger.info(
+        "Event search completed",
+        extra={"provider": provider, "event_count": len(events_raw), "fallback_used": fallback_used},
+    )
     
     # Add to workflow trace
     trace_entry = {
