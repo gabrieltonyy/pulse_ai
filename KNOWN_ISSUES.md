@@ -27,23 +27,59 @@
 **Date Identified:** 2026-05-16
 
 ### 2. Full Regression Suite Not Re-run After Hardening Changes ⚠️ ACTION NEEDED
-**Issue:** Stages 1-6 changed security, FastAPI wiring, repository/session handling, logging, LangGraph state returns, and API caching. Targeted syntax checks passed, but the full test suite has not been re-run in this chat.
+**Issue:** Stages 1-8 changed security, FastAPI wiring, repository/session handling, logging, LangGraph state returns, API caching, rate limiting, MCP tools, and container commands. Targeted syntax checks passed, but the full test suite has not been re-run in this chat.
 
 **Status:** Pending verification
 - `python -m py_compile` passed for touched Python files during each stage
 - Stage 5 state-mutation scan passed for all 9 graph nodes
 - Stage 6 `git diff --check` passed for caching changes
-- Runtime imports may require installing missing dependencies in the active environment
+- Stage 7/8 syntax checks passed for touched Python files
+- Runtime imports may require installing missing dependencies in the active environment, including newly added `slowapi`
 
 **Recommendation:**
 - Run `./run_tests.sh` or `pytest tests/ -v` in a fully provisioned environment before release
-- Include cache-hit/cache-miss coverage for Ticketmaster and OpenWeather paths when adding tests
+- Include cache-hit/cache-miss and rate-limit coverage for Ticketmaster/OpenWeather/search/event paths when adding tests
 
 **Date Identified:** 2026-05-19
 
 ---
 
 ## Resolved Issues
+
+### Missing Application Rate Limiting ✅ FIXED
+**Issue:** Public API endpoints had provider-level retry/rate-limit handling but no application-level request throttling.
+
+**Fix:**
+- Added `slowapi>=0.1.9`
+- Added shared `Limiter(key_func=get_remote_address)` in `app/rate_limit.py`
+- Registered `SlowAPIMiddleware` and stored the limiter on `app.state.limiter`
+- Applied limits:
+  - Search JSON/HTMX: `20/minute`
+  - Event detail/calendar: `60/minute`
+  - Click tracking: `120/minute`
+
+**Date Fixed:** 2026-05-19
+
+### MCP Tool Workflow and Error Response Polish ✅ FIXED
+**Issue:** `pulse_search_events` did not directly call the singleton `get_workflow()`, and venue/weather MCP tools lacked logging and consistent `success: false` error responses.
+
+**Fix:**
+- Updated `pulse_search_events.py` to call `get_workflow()`
+- Added logging to `pulse_enrich_venue.py` and `pulse_get_weather.py`
+- Standardized failure responses to include `{"success": False, "error": ...}`
+- Preserved demo-mode success responses for venue/weather tools
+
+**Date Fixed:** 2026-05-19
+
+### Production Container Command Needed Hardening ✅ FIXED
+**Issue:** The production Docker command needed explicit non-reload Uvicorn settings and a clear worker-count note. The dev compose command intentionally still uses `--reload`.
+
+**Fix:**
+- Updated `Dockerfile` CMD to run `uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1`
+- Added a Dockerfile note that worker count should be increased through production deployment settings
+- Added comments to `docker-compose.yml` marking it as development-only and documenting that `--reload` is local-only
+
+**Date Fixed:** 2026-05-19
 
 ### P0 Security and Error Leakage Risks ✅ FIXED
 **Issue:** Several API paths exposed implementation details or accepted overly broad input.
@@ -175,7 +211,8 @@ The asyncio extension requires an async driver to be used. The loaded 'psycopg2'
 - Ticketmaster: 5000 requests/day
 - Geoapify: Depends on plan
 - OpenWeather: 1000 requests/day (free tier)
-- Proper rate limiting implemented with retry logic
+- Proper provider rate-limit handling implemented with retry logic
+- Application-level SlowAPI limits now protect search/event routes
 - DB-backed caching now active in the main graph for Ticketmaster event searches and OpenWeather responses
 - Geoapify client still relies on retry/rate-limit handling; no graph-node cache is currently wired for venue enrichment
 

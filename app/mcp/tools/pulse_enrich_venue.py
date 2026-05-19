@@ -1,8 +1,12 @@
 """MCP tool for enriching venue information via Geoapify."""
 from __future__ import annotations
 
+import logging
+
 from app.config.settings import settings
 from app.integrations.geoapify_client import GeoapifyClient
+
+logger = logging.getLogger(__name__)
 
 # Default categories covering the most relevant POIs near an event venue
 _DEFAULT_CATEGORIES = [
@@ -34,7 +38,9 @@ async def pulse_enrich_venue(
         - categories_found (list[str]) – categories that had results
     """
     if settings.demo_mode:
+        logger.info("Venue enrichment skipped in demo mode")
         return {
+            "success": True,
             "nearby_places": [],
             "area_summary": "Demo mode: live venue enrichment skipped.",
             "transport_info": None,
@@ -44,6 +50,10 @@ async def pulse_enrich_venue(
     client = GeoapifyClient()
 
     try:
+        logger.info(
+            "Starting venue enrichment",
+            extra={"provider": "geoapify", "radius": radius},
+        )
         venue_context = await client.get_nearby_places(
             lat=latitude,
             lon=longitude,
@@ -51,6 +61,10 @@ async def pulse_enrich_venue(
             categories=_DEFAULT_CATEGORIES,
         )
     except Exception as exc:  # noqa: BLE001
-        return {"nearby_places": [], "error": str(exc)}
+        logger.warning(
+            "Venue enrichment failed",
+            extra={"provider": "geoapify", "error_type": type(exc).__name__},
+        )
+        return {"success": False, "error": str(exc), "nearby_places": []}
 
-    return venue_context
+    return {"success": True, **venue_context}

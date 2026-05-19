@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.config.settings import settings
 from app.models.search import SearchRequest, SearchResponse
+from app.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +23,14 @@ router = APIRouter(prefix="/api/search", tags=["search"])
 _templates = Jinja2Templates(directory="app/templates")
 
 _MAX_QUERY_LENGTH = 300
+_SEARCH_RATE_LIMIT = "20/minute"
 
 
 # ---------------------------------------------------------------------------
 # POST /api/search  – full workflow, returns JSON
 # ---------------------------------------------------------------------------
 @router.post("/", response_model=SearchResponse)
+@limiter.limit(_SEARCH_RATE_LIMIT)
 async def search_events(
     search_request: SearchRequest,
     request: Request,
@@ -95,6 +98,7 @@ async def search_events(
 # POST /api/search/htmx  – HTMX-friendly endpoint, returns HTML fragment
 # ---------------------------------------------------------------------------
 @router.post("/htmx", response_class=HTMLResponse)
+@limiter.limit(_SEARCH_RATE_LIMIT)
 async def search_events_htmx(request: Request) -> HTMLResponse:
     """
     HTMX variant: accepts form-encoded POST, returns rendered results.html fragment.

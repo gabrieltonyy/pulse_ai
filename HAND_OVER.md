@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-05-19
 **Phase:** Post-Phase 7 Stabilization & Security Hardening
-**Status:** ✅ Phase 7 COMPLETE + Stage 1-6 hardening/caching work applied locally
+**Status:** ✅ Phase 7 COMPLETE + Stage 1-8 hardening/caching/polish work applied locally
 
 ---
 
@@ -17,7 +17,7 @@
 - FastAPI application with health endpoint
 - LangGraph workflow with 9 implemented nodes
 - All environment variables configured in .env
-- Docker setup (Dockerfile + docker-compose.yml, version attribute removed)
+- Docker setup (Dockerfile production CMD hardened, docker-compose dev reload documented)
 - All operational files created
 - Import verification test passed ✅
 - **All Pydantic models implemented** ✅
@@ -70,16 +70,25 @@
 - **API response caching wired into pipeline** ✅
   - Ticketmaster event search cache via `ApiCacheRepository`
   - OpenWeather response cache via `ApiCacheRepository`
+- **Application rate limiting wired with SlowAPI** ✅
+  - Search endpoints limited to 20/minute
+  - Event detail/calendar endpoints limited to 60/minute
+  - Click tracking endpoint limited to 120/minute
+- **Final housekeeping and production container polish completed** ✅
+  - MCP search tool uses singleton `get_workflow()`
+  - MCP venue/weather tools log failures and return consistent `success: false` error shapes
+  - Production Dockerfile runs Uvicorn without `--reload`
+  - Dev compose file explicitly documents its `--reload` command as local-only
 
 ### ⏳ Pending
 - Future enhancements (Phase 8)
 - Advanced features (Phase 8)
 - Production optimization (Phase 8)
 - Re-run full test suite after installing all Python dependencies in the target environment
-- Commit and push current Stage 2-6/doc changes when ready
+- Commit and push current Stage 2-8/doc changes when ready
 
 ### ❌ Not Working
-- Runtime import/testing in this environment may fail until dependencies such as `pydantic-settings` are installed.
+- Runtime import/testing in this environment may fail until dependencies such as `pydantic-settings` and newly added `slowapi` are installed.
 
 ---
 
@@ -87,11 +96,11 @@
 
 **Post-Phase 7 stabilization is current priority.** ✅
 
-**Project Status: Phase 7 complete; Stage 1-6 hardening/caching updates applied locally**
+**Project Status: Phase 7 complete; Stage 1-8 hardening/caching/polish updates applied locally**
 
 Next recommended actions:
 - Run the full test suite in a fully provisioned environment
-- Review and commit Stage 2-6 plus documentation changes
+- Review and commit Stage 2-8 plus documentation changes
 - Continue to Phase 8 only after stabilization changes are verified
 
 ---
@@ -166,6 +175,7 @@ parse_query
 
 ### Core Application
 - `app/main.py` - FastAPI application entry point
+- `app/rate_limit.py` - Shared SlowAPI limiter instance
 - `app/config/settings.py` - Configuration management
 - `app/db/database.py` - Database connection and session management
 
@@ -212,7 +222,7 @@ DATABASE_URL=postgresql+asyncpg://pulse_user:pulse_password@localhost:5432/pulse
 
 ## Last Completed Work
 
-**Post-Phase 7 Stabilization & Hardening (Stages 1-6)** ✅ COMPLETE/APPLIED LOCALLY
+**Post-Phase 7 Stabilization & Hardening (Stages 1-8)** ✅ COMPLETE/APPLIED LOCALLY
 
 ### Stage 1: Critical Bug Fixes & Security Hardening
 - Replaced unsafe API/HTMX exception exposure with generic user-facing errors.
@@ -258,6 +268,25 @@ DATABASE_URL=postgresql+asyncpg://pulse_user:pulse_password@localhost:5432/pulse
   - Cache key: `openweather:weather:{sha256(sorted JSON of lat, lon, date)}`
   - TTL: `settings.cache_ttl_weather`
 - Cache failures are non-blocking; weather cache failures are silently skipped.
+
+### Stage 7: Rate Limiting
+- Added `slowapi>=0.1.9` to `requirements.txt`.
+- Added shared `app/rate_limit.py` with a `Limiter(key_func=get_remote_address)`.
+- Registered `SlowAPIMiddleware` in `app/main.py` and stored the limiter on `app.state.limiter`.
+- Applied endpoint limits:
+  - `search_events()` and `search_events_htmx()`: `20/minute`
+  - `get_event()` and `export_calendar()`: `60/minute`
+  - `track_click()`: `120/minute`
+- Added required `Request` parameters to limited event routes.
+
+### Stage 8: Final Housekeeping & Polish
+- Reviewed `rank_events.py`; confirmed it uses `RankingService` and reconstructs `SearchIntent` from state correctly.
+- Reviewed `weather_context.py`; confirmed it uses `OpenWeatherClient`, respects demo mode/forecast horizon, and gates weather enrichment to outdoor-suitable events.
+- Reviewed `demo_provider.py`; confirmed demo data covers current test edge cases.
+- Updated `pulse_search_events.py` to use singleton `get_workflow()` instead of constructing a workflow path directly.
+- Added logging and consistent `{"success": False, "error": ...}` failure responses to `pulse_enrich_venue.py` and `pulse_get_weather.py`.
+- Updated `Dockerfile` Uvicorn CMD to remove dev reload behavior and run with `--workers 1`.
+- Added comments to `docker-compose.yml` marking the compose command and `--reload` usage as development-only.
 
 **Phase 3: Query Understanding & Validation with Full API Integration** ✅ COMPLETE
 
@@ -635,6 +664,7 @@ pytest tests/ --cov=app --cov-report=html
 **Operational Documentation:**
 - ✅ TASKS.md updated with Phase 7 completion
 - ✅ HAND_OVER.md updated with Phase 7 status
+- ✅ TASKS.md, HAND_OVER.md, and KNOWN_ISSUES.md updated with Stage 7-8 status
 - ✅ All deliverables documented
 
 ---
@@ -679,11 +709,12 @@ See KNOWN_ISSUES.md for full details.
 ## Testing Status
 
 - ✅ API connection tests previously created and passing (tests/test_api_connections.py)
-- ✅ Stage 1-6 touched Python files passed `python -m py_compile`
+- ✅ Stage 1-8 touched Python files passed `python -m py_compile`
 - ✅ Stage 5 state-mutation scan confirmed no direct `state[...] =`, `.append`, or `.extend` mutations remain in the 9 node files
 - ✅ Stage 6 `git diff --check` passed for caching changes
+- ✅ Stage 7 rate-limited route modules and Stage 8 MCP tool modules passed syntax compilation
 - ⏳ Full test suite should be rerun in a fully provisioned environment before release
-- ⚠️ Local runtime import checks may require installing missing dependencies such as `pydantic-settings`
+- ⚠️ Local runtime import checks may require installing missing dependencies such as `pydantic-settings` and `slowapi`
 
 ---
 

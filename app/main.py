@@ -10,11 +10,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.api.routes.events import router as events_router
 from app.api.routes.search import router as search_router
 from app.config.settings import settings
 from app.graph.workflow import get_workflow
+from app.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,9 @@ app = FastAPI(
     redoc_url="/redoc" if settings.debug else None,
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

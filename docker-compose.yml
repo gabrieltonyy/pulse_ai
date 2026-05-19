@@ -1,3 +1,4 @@
+# Development-only compose file; the app service intentionally uses --reload.
 services:
   # PostgreSQL Database
   postgres:
@@ -39,6 +40,7 @@ services:
       - ./bob_sessions:/app/bob_sessions
     networks:
       - pulse_network
+    # Dev command: --reload is acceptable here for local iteration only.
     command: >
       sh -c "
         echo 'Waiting for database...' &&

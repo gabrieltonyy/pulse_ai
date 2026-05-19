@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Any
-from app.graph.workflow import create_pulse_workflow
+from app.graph.workflow import get_workflow
 
 async def pulse_search_events(
     query: str,
@@ -12,7 +12,7 @@ async def pulse_search_events(
     date_to: str | None = None,
     budget_max: float | None = None,
     use_demo: bool = False,
-)   -> dict[str, Any]:
+) -> dict[str, Any]:
     """
     search for events using the pulse AI recommendation engine.
 
@@ -43,7 +43,7 @@ async def pulse_search_events(
             "errors": [{"node": "pulse_search_events", "error": "invalid query"}],
         }
 
-    workflow = create_pulse_workflow()
+    workflow = get_workflow()
  
     initial_state: dict[str, Any] = {
         "raw_query": query,

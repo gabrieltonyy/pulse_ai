@@ -5,26 +5,31 @@ import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.db.repositories import EventRepository
+from app.rate_limit import limiter
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
 EventIdPath = Annotated[str, Path(regex=r"^[a-zA-Z0-9_\-]{1,64}$")]
+_EVENT_READ_RATE_LIMIT = "60/minute"
+_TRACK_CLICK_RATE_LIMIT = "120/minute"
 
 
 # ---------------------------------------------------------------------------
 # GET /api/events/{event_id}  – event detail
 # ---------------------------------------------------------------------------
 @router.get("/{event_id}")
+@limiter.limit(_EVENT_READ_RATE_LIMIT)
 async def get_event(
     event_id: EventIdPath,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """Return detailed information about a specific saved event."""
@@ -41,8 +46,10 @@ async def get_event(
 # POST /api/events/{event_id}/track-click  – outbound click tracking
 # ---------------------------------------------------------------------------
 @router.post("/{event_id}/track-click")
+@limiter.limit(_TRACK_CLICK_RATE_LIMIT)
 async def track_click(
     event_id: EventIdPath,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """Record a user click-through for analytics."""
@@ -60,8 +67,10 @@ async def track_click(
 # GET /api/events/{event_id}/calendar  – .ics export
 # ---------------------------------------------------------------------------
 @router.get("/{event_id}/calendar", response_class=PlainTextResponse)
+@limiter.limit(_EVENT_READ_RATE_LIMIT)
 async def export_calendar(
     event_id: EventIdPath,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> PlainTextResponse:
     """

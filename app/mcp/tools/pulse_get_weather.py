@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 
 from app.config.settings import settings
 from app.integrations.openweather_client import OpenWeatherClient
+
+logger = logging.getLogger(__name__)
 
 
 async def pulse_get_weather(
@@ -32,7 +35,9 @@ async def pulse_get_weather(
         - weather_note (str)         – one-sentence advisory for the user
     """
     if settings.demo_mode:
+        logger.info("Weather lookup skipped in demo mode")
         return {
+            "success": True,
             "temperature": None,
             "condition": "unknown",
             "outdoor_suitability": "unknown",
@@ -43,12 +48,22 @@ async def pulse_get_weather(
 
     try:
         event_date = datetime.fromisoformat(date).date()
+        logger.info("Starting weather lookup", extra={"provider": "openweather"})
         weather = await client.get_weather(
             lat=latitude,
             lon=longitude,
             event_date=event_date,
         )
     except Exception as exc:  # noqa: BLE001
-        return {"temperature": None, "outdoor_suitability": "unknown", "error": str(exc)}
+        logger.warning(
+            "Weather lookup failed",
+            extra={"provider": "openweather", "error_type": type(exc).__name__},
+        )
+        return {
+            "success": False,
+            "error": str(exc),
+            "temperature": None,
+            "outdoor_suitability": "unknown",
+        }
 
-    return weather
+    return {"success": True, **weather}

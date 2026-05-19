@@ -374,17 +374,37 @@
   - [x] Made cache failures non-blocking
   - [x] Added cache-hit data to workflow traces
 
+- [x] **Stage 7: Rate Limiting**
+  - [x] Added `slowapi>=0.1.9` dependency
+  - [x] Added shared SlowAPI limiter in `app/rate_limit.py`
+  - [x] Registered `SlowAPIMiddleware` in `app/main.py`
+  - [x] Stored limiter on `app.state.limiter`
+  - [x] Limited search endpoints to `20/minute`
+  - [x] Limited event detail and calendar endpoints to `60/minute`
+  - [x] Limited click tracking endpoint to `120/minute`
+  - [x] Added required `Request` parameters to rate-limited event routes
+
+- [x] **Stage 8: Final Housekeeping & Polish**
+  - [x] Reviewed `rank_events.py`; confirmed `RankingService` and `SearchIntent` usage
+  - [x] Reviewed `weather_context.py`; confirmed `OpenWeatherClient` and outdoor-event gating
+  - [x] Reviewed `demo_provider.py`; confirmed demo data covers current test edge cases
+  - [x] Updated `pulse_search_events.py` to use singleton `get_workflow()`
+  - [x] Added logging to `pulse_enrich_venue.py` and `pulse_get_weather.py`
+  - [x] Standardized MCP venue/weather failure responses as `{"success": False, "error": ...}`
+  - [x] Removed production reload behavior from `Dockerfile` CMD
+  - [x] Documented `docker-compose.yml` as dev-only and kept `--reload` there intentionally
+
 ---
 
 ## In Progress
-None currently - stabilization stages 1-6 have been applied locally.
+None currently - stabilization stages 1-8 have been applied locally.
 
 ---
 
 ## Next Priority
 - [ ] Run full regression suite in a fully provisioned environment
 - [ ] Add/adjust tests for cache-hit and cache-miss paths
-- [ ] Review and commit Stage 2-6 plus documentation updates
+- [ ] Review and commit Stage 2-8 plus documentation updates
 - [ ] Continue Phase 8 planning after stabilization verification
 
 ---
@@ -413,7 +433,7 @@ None currently.
 - All API keys configured in .env
 - watsonx.ai configured as LLM provider
 - Demo mode available for testing without API calls
-- **Phase Progress: 7/8 phases complete, plus post-Phase 7 stabilization stages 1-6 applied** ✅
+- **Phase Progress: 7/8 phases complete, plus post-Phase 7 stabilization stages 1-8 applied** ✅
 - Phase 1: Foundation ✅
 - Phase 2: Core Data Models & Demo Provider ✅
 - Phase 3: Query Understanding & Validation ✅
